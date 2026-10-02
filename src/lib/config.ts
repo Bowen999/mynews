@@ -58,7 +58,8 @@ export const config = {
   },
   store: {
     get supabaseUrl() {
-      return env("SUPABASE_URL") ?? env("NEXT_PUBLIC_SUPABASE_URL");
+      const raw = env("SUPABASE_URL") ?? env("NEXT_PUBLIC_SUPABASE_URL");
+      return raw ? normalizeSupabaseUrl(raw) : undefined;
     },
     get supabaseKey() {
       return env("SUPABASE_SERVICE_ROLE_KEY") ?? env("SUPABASE_SECRET_KEY");
@@ -90,6 +91,19 @@ export const config = {
     return env("VERCEL") === "1";
   },
 };
+
+/**
+ * Accept common copy-paste variants of the Supabase project URL: the dashboard link
+ * (https://supabase.com/dashboard/project/<ref>/...) becomes https://<ref>.supabase.co, and
+ * trailing slashes or a /rest/v1 suffix are removed.
+ */
+export function normalizeSupabaseUrl(raw: string): string {
+  const v = raw.trim().replace(/^["']|["']$/g, "");
+  const dash = v.match(/supabase\.(?:com|co)\/dashboard\/project\/([a-z0-9]+)/i);
+  if (dash) return `https://${dash[1].toLowerCase()}.supabase.co`;
+  const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  return withScheme.replace(/\/+$/, "").replace(/\/rest\/v1$/i, "");
+}
 
 export function hasSupabase(): boolean {
   return Boolean(config.store.supabaseUrl && config.store.supabaseKey);
@@ -138,7 +152,7 @@ export function configurationAdvisories(): string[] {
     );
   }
   if (!config.search.openalexKey) {
-    notes.push("OPENALEX_API_KEY not set: OpenAlex allows only a small free daily budget without a key (free key at openalex.org/settings/api).");
+    notes.push("Optional: OPENALEX_API_KEY not set. Paper search still works on OpenAlex's small keyless daily budget; a free key (openalex.org/settings/api) makes it more reliable.");
   }
   if (!hasSupabase()) {
     notes.push("Supabase not configured: editions are stored on the local filesystem (.data/). Fine for local use only.");

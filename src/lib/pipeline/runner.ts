@@ -40,7 +40,7 @@ function link(run: Run, path: string): string | undefined {
 export function databaseProblem(e: unknown): RequiredInput {
   return {
     key: "DATABASE",
-    message: `Could not read from the database (${e instanceof Error ? e.message : String(e)}).`,
+    message: `Could not read from the database (${(e instanceof Error ? e.message : String(e)).slice(0, 400)}).`,
     action: "Run supabase/migrations/0001_init.sql in the Supabase SQL editor and check SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.",
   };
 }

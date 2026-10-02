@@ -63,7 +63,8 @@ It never waits silently: input problems are reported both in the UI and through 
 ## Deploy (Vercel + Supabase)
 
 1. **Supabase:** create a project, open *SQL Editor*, and run [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-   Copy the project URL and the **service role** key (*Project Settings → API*). RLS is enabled with no policies,
+   Copy the **Project URL** (`https://<project-ref>.supabase.co`, not the `supabase.com/dashboard/...` link) and the
+   **service role / secret** key, not the anon/publishable key (*Project Settings → API*). RLS is enabled with no policies,
    so only the server (service role) can read or write.
 2. **Search API:** create a [Tavily](https://tavily.com) key (the free tier is enough for weekly use). Exa, Serper or
    Brave also work. You can set more than one; they are tried in order.

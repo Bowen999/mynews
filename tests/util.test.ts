@@ -69,3 +69,20 @@ describe("extractJson", () => {
     expect(extractJson('Sure! {"a":[1,2,],}')).toEqual({ a: [1, 2] });
   });
 });
+
+describe("Supabase configuration", () => {
+  it("normalizes dashboard links and API URL variants", async () => {
+    const { normalizeSupabaseUrl } = await import("../src/lib/config");
+    expect(normalizeSupabaseUrl("https://supabase.com/dashboard/project/abcdefghijklmnopqrst/settings/api")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+    expect(normalizeSupabaseUrl("https://abcdefghijklmnopqrst.supabase.co/")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+    expect(normalizeSupabaseUrl("https://abcdefghijklmnopqrst.supabase.co/rest/v1/")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+    expect(normalizeSupabaseUrl("abcdefghijklmnopqrst.supabase.co")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+  });
+  it("turns raw errors into short actionable messages", async () => {
+    const { describeSupabaseError } = await import("../src/lib/store/supabase");
+    expect(describeSupabaseError("getProfile", { message: '<!DOCTYPE html><html lang="en">…' })).toMatch(/SUPABASE_URL is wrong/);
+    expect(describeSupabaseError("getProfile", { message: "Could not find the table 'public.profiles'", code: "PGRST205" })).toMatch(/0001_init\.sql/);
+    expect(describeSupabaseError("getProfile", { message: "permission denied for table profiles", code: "42501" })).toMatch(/service_role/);
+    expect(describeSupabaseError("x", { message: "a".repeat(1000) }).length).toBeLessThan(330);
+  });
+});

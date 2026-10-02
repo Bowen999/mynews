@@ -4,8 +4,26 @@ import { summarizeEdition, type Store } from "./types";
 
 type Row = Record<string, unknown>;
 
-function check<T>(res: { data: T; error: { message: string } | null }, what: string): T {
-  if (res.error) throw new Error(`Supabase ${what}: ${res.error.message}`);
+/** Turn raw Supabase/PostgREST errors into short, actionable messages. */
+export function describeSupabaseError(what: string, error: { message?: string; code?: string }): string {
+  const msg = String(error.message ?? "");
+  if (/<!doctype html|<html/i.test(msg)) {
+    return `Supabase ${what}: got a web page instead of API data, so SUPABASE_URL is wrong. Use the Project URL (https://<project-ref>.supabase.co) from Project Settings → API, not the dashboard link.`;
+  }
+  if (error.code === "42P01" || error.code === "PGRST205" || /does not exist|could not find the table/i.test(msg)) {
+    return `Supabase ${what}: tables are missing. Run supabase/migrations/0001_init.sql in the Supabase SQL editor.`;
+  }
+  if (error.code === "42501" || /permission denied|row-level security/i.test(msg)) {
+    return `Supabase ${what}: permission denied. SUPABASE_SERVICE_ROLE_KEY must be the service_role / secret key, not the anon or publishable key.`;
+  }
+  if (/invalid api key|jwt|apikey/i.test(msg)) {
+    return `Supabase ${what}: the API key was rejected. Check SUPABASE_SERVICE_ROLE_KEY (service_role / secret key).`;
+  }
+  return `Supabase ${what}: ${msg.length > 300 ? `${msg.slice(0, 300)}…` : msg}`;
+}
+
+function check<T>(res: { data: T; error: { message: string; code?: string } | null }, what: string): T {
+  if (res.error) throw new Error(describeSupabaseError(what, res.error));
   return res.data;
 }
 
