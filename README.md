@@ -187,7 +187,8 @@ src/lib/store/        Supabase store and local file store behind one interface
 src/lib/auth/         Supabase Auth (server-side cookies) and local dev accounts behind one interface; allow-list policy
 src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.ts usage limits
 src/lib/render/       standalone HTML edition renderer
-src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms
+src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms;
+                      classic/ holds the card-based home page (edition reader + story sheet)
 supabase/migrations/  database schema
 tests/                vitest suites (parsers, verification, ranking, providers, end-to-end mock pipeline)
 ```

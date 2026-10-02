@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-function track(editionId: string, itemId: string, kind: "open" | "source") {
+/** Best-effort implicit feedback (story opened / source followed); never blocks reading. */
+export function trackInteraction(editionId: string, itemId: string, kind: "open" | "source") {
   try {
     void fetch("/api/interactions", {
       method: "POST",
@@ -21,18 +22,18 @@ function track(editionId: string, itemId: string, kind: "open" | "source") {
  */
 export function ReadTracker({ editionId, itemId, children }: { editionId: string; itemId: string; children: React.ReactNode }) {
   useEffect(() => {
-    const t = setTimeout(() => track(editionId, itemId, "open"), 1500); // ignore instant bounces
+    const t = setTimeout(() => trackInteraction(editionId, itemId, "open"), 1500); // ignore instant bounces
     return () => clearTimeout(t);
   }, [editionId, itemId]);
   return (
     <div
       onClickCapture={(e) => {
         const a = (e.target as HTMLElement).closest?.("a[data-source]");
-        if (a) track(editionId, itemId, "source");
+        if (a) trackInteraction(editionId, itemId, "source");
       }}
       onAuxClick={(e) => {
         const a = (e.target as HTMLElement).closest?.("a[data-source]");
-        if (a && e.button === 1) track(editionId, itemId, "source");
+        if (a && e.button === 1) trackInteraction(editionId, itemId, "source");
       }}
     >
       {children}

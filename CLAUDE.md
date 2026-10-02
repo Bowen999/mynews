@@ -11,3 +11,4 @@
 - Embeddings (`src/lib/embed`, Jina) are optional: every stage must still work keyword-only when `getEmbedder()` returns null.
 - Multi-user: every page/API calls `requireUser()`/`requirePageUser()` (`src/lib/session.ts`) and loads data through `profileForUser`/`ownedRun`/`ownedEdition` (`src/lib/accounts.ts`); never read another profile's data by id from a request.
 - UI style: monochrome editorial (Inter Tight + Source Serif 4), rules instead of cards, no gradients or category colors.
+  Exception: the home page (`src/app/page.tsx`) keeps the classic card design (`src/components/classic/`, `src/app/classic.css`, all `cl-` classes, header restyled only via `body:has(.classic)`) with the same two fonts.

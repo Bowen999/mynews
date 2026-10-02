@@ -47,7 +47,8 @@ export function BlockerDialog({ blocker, onClose }: { blocker: Blocker | null; o
   );
 }
 
-export function GenerateButton({ size = "md" }: { size?: "md" | "lg" }) {
+/** `variant="classic"` renders the rounded red button of the classic front page. */
+export function GenerateButton({ size = "md", variant = "editorial" }: { size?: "md" | "lg"; variant?: "editorial" | "classic" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -67,6 +68,24 @@ export function GenerateButton({ size = "md" }: { size?: "md" | "lg" }) {
       setBusy(false);
     }
   };
+
+  if (variant === "classic") {
+    return (
+      <>
+        <button
+          type="button"
+          className={`cl-btn cl-btn-primary ${size === "lg" ? "cl-btn-lg" : "cl-btn-sm"}`}
+          onClick={start}
+          disabled={busy}
+          aria-label="Generate Weekly Briefing"
+        >
+          {busy && <span className="cl-spinner" />}
+          Generate Weekly Briefing
+        </button>
+        <BlockerDialog blocker={blocker} onClose={() => setBlocker(null)} />
+      </>
+    );
+  }
 
   return (
     <>
