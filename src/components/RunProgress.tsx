@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunView } from "@/lib/run-view";
 import { STAGES } from "@/lib/types";
 import { formatRange } from "@/lib/util/dates";
-import { CheckIcon, CloseIcon } from "./Icons";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -97,91 +96,85 @@ export function RunProgress({ initial }: { initial: RunView }) {
           ? "Waiting for your input"
           : "Composing your briefing";
 
+  const STATUS_LABEL = { pending: "Waiting", active: "Working", done: "Done", failed: "Stopped" } as const;
+
   return (
-    <div className="container narrow progress-page">
-      <div className="kicker">Weekly Briefing · {formatRange(run.windowStart, run.windowEnd)}</div>
-      <h1>{title}</h1>
-      <p className="sub">
-        {run.status === "running"
-          ? "Searching the past seven days, verifying sources and writing your top ten. This usually takes two to five minutes; keep this tab open."
-          : run.status === "completed"
-            ? "Opening your new edition…"
-            : run.status === "needs_input"
-              ? "A notification with the required action was sent to your ntfy topic."
-              : "A notification with the error was sent to your ntfy topic. You can resume from the failed step."}
-      </p>
+    <div className="wrap">
+      <header className="page-head">
+        <div className="label">Weekly Briefing · {formatRange(run.windowStart, run.windowEnd)}</div>
+        <h1 className="title-xl">{title}</h1>
+        <p className="dek">
+          {run.status === "running"
+            ? "Searching the past seven days, verifying sources and writing your top ten. This usually takes two to five minutes. Keep this tab open."
+            : run.status === "completed"
+              ? "Opening your new edition…"
+              : run.status === "needs_input"
+                ? "Something needs your attention before the briefing can continue."
+                : "The run is saved. You can resume from the step that stopped."}
+        </p>
+      </header>
 
-      <ol className="stages">
-        {STAGES.map((s) => {
-          const p = run.progress.find((x) => x.key === s.key);
-          const status = p?.status ?? "pending";
-          return (
-            <li key={s.key} className={`stage ${status}`}>
-              <span className="icon" aria-hidden>
-                {status === "done" ? <CheckIcon /> : status === "failed" ? <CloseIcon size={14} /> : null}
-              </span>
-              <div>
-                <div className="label">{s.label}</div>
-                <div className="detail">{p?.detail ?? ""}</div>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      <div className="stages-wrap">
+        <ol className="stages">
+          {STAGES.map((s, i) => {
+            const p = run.progress.find((x) => x.key === s.key);
+            const status = p?.status ?? "pending";
+            return (
+              <li key={s.key} className={`stage ${status}`}>
+                <span className="sn">{String(i + 1).padStart(2, "0")}</span>
+                <span className="sl">{s.label}</span>
+                <span className="sd">{p?.detail ?? ""}</span>
+                <span className="ss">{STATUS_LABEL[status]}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
 
-      {run.status === "completed" && run.editionId && (
-        <div className="done-card">
-          <h2>Edition ready</h2>
-          <p>Your top stories for the week have been written and verified.</p>
-          <Link className="btn btn-primary" href={`/editions/${run.editionId}`}>
-            Read the edition →
-          </Link>
-        </div>
-      )}
-
-      {run.status === "failed" && (
-        <div className="notice error" role="alert">
-          <span className="dot" />
-          <div>
+      <div className="notices">
+        {run.status === "completed" && run.editionId && (
+          <div className="notice">
+            <strong>Edition ready.</strong> Your top stories for the week have been written and verified.
+            <div style={{ marginTop: 14 }}>
+              <Link className="btn btn-solid" href={`/editions/${run.editionId}`}>
+                Read the edition <span className="arrow">→</span>
+              </Link>
+            </div>
+          </div>
+        )}
+        {run.status === "failed" && (
+          <div className="notice error" role="alert">
             <strong>{run.error}</strong>
-            <div style={{ marginTop: 12 }}>
-              <button type="button" className="btn btn-primary btn-sm" onClick={retry}>
+            <div style={{ marginTop: 14 }}>
+              <button type="button" className="btn btn-solid btn-sm" onClick={retry}>
                 Resume from this step
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {run.status === "needs_input" && (
-        <div className="notice warn" role="alert">
-          <span className="dot" />
-          <div>
+        )}
+        {run.status === "needs_input" && (
+          <div className="notice warn" role="alert">
             {run.requiredInputs?.map((i) => (
               <p key={i.key} style={{ margin: "0 0 8px" }}>
                 <strong>{i.message}</strong> {i.action}
               </p>
             ))}
-            <div className="row" style={{ marginTop: 12 }}>
-              <Link className="btn btn-secondary btn-sm" href="/profile">
+            <div className="row" style={{ marginTop: 14 }}>
+              <Link className="btn btn-sm" href="/profile">
                 Open profile
               </Link>
-              <button type="button" className="btn btn-primary btn-sm" onClick={retry}>
+              <button type="button" className="btn btn-solid btn-sm" onClick={retry}>
                 Try again
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {netError && run.status === "running" && (
-        <div className="notice error" role="alert">
-          <span className="dot" />
-          <div>
+        )}
+        {netError && run.status === "running" && (
+          <div className="notice error" role="alert">
             <strong>Lost connection to the generator ({netError}).</strong> The run is saved; reload this page to continue.
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <details className="log">
         <summary>Activity log</summary>

@@ -1,8 +1,20 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { CATEGORIES, CATEGORY_META, type Category, type Profile, type SystemStatus } from "@/lib/types";
-import { CloseIcon } from "./Icons";
+
+export interface UsageInfo {
+  used: number;
+  limit: number | null;
+  nextSlotAt?: string;
+}
+
+export interface AccountInfo {
+  email: string;
+  isAdmin: boolean;
+  authKind: "supabase" | "local";
+}
 
 function withScheme(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -24,13 +36,13 @@ function TagInput({ value, onChange, placeholder }: { value: string[]; onChange:
     setDraft("");
   };
   return (
-    <div>
+    <div style={{ display: "grid", gap: 10 }}>
       {value.length > 0 && (
-        <div className="chips" style={{ marginTop: 0, marginBottom: 10 }}>
+        <div className="tags">
           {value.map((t) => (
-            <span className="chip" key={t}>
+            <span className="tag" key={t}>
               {t}
-              <button type="button" className="x" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))}>
+              <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))}>
                 ×
               </button>
             </span>
@@ -50,7 +62,7 @@ function TagInput({ value, onChange, placeholder }: { value: string[]; onChange:
             }
           }}
         />
-        <button type="button" className="btn btn-secondary" onClick={add} disabled={!draft.trim()}>
+        <button type="button" className="btn" onClick={add} disabled={!draft.trim()}>
           Add
         </button>
       </div>
@@ -58,7 +70,59 @@ function TagInput({ value, onChange, placeholder }: { value: string[]; onChange:
   );
 }
 
-export function ProfileEditor({ initial, status }: { initial: Profile; status: SystemStatus }) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="form-section">
+      <header>
+        <h2>{title}</h2>
+        {hint && <p>{hint}</p>}
+      </header>
+      <div className="fields">{children}</div>
+    </section>
+  );
+}
+
+function PasswordChange() {
+  const [pw, setPw] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      setPw("");
+      setMsg({ ok: true, text: "Password updated." });
+    } else setMsg({ ok: false, text: data.error ?? "Could not update the password." });
+  };
+  return (
+    <label className="field">
+      <span>New password</span>
+      <div className="row">
+        <input className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} minLength={8} />
+        <button type="button" className="btn" onClick={save} disabled={pw.length < 8 || busy}>
+          Change password
+        </button>
+      </div>
+      {msg && <p className={msg.ok ? "form-ok" : "form-error"}>{msg.text}</p>}
+    </label>
+  );
+}
+
+export function ProfileEditor({
+  initial,
+  status,
+  usage,
+  account,
+}: {
+  initial: Profile;
+  status: SystemStatus | null;
+  usage: UsageInfo;
+  account: AccountInfo;
+}) {
+  const router = useRouter();
   const [profile, setProfile] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const [url, setUrl] = useState("");
@@ -72,11 +136,15 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
   );
 
   const prefs = profile.preferences;
-  const setPrefs = (patch: Partial<typeof prefs>) => setProfile({ ...profile, preferences: { ...prefs, ...patch } });
+  const setPrefs = (patch: Partial<typeof prefs>) => {
+    setMessage(null);
+    setProfile({ ...profile, preferences: { ...prefs, ...patch } });
+  };
 
   const addSource = () => {
     const v = url.trim();
     if (!v) return;
+    setMessage(null);
     setProfile({
       ...profile,
       sources: [...profile.sources, { id: `new-${Date.now()}`, url: v, label: label.trim() || undefined, addedAt: new Date().toISOString() }],
@@ -94,14 +162,15 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sources: profile.sources.map((s) => ({ id: s.id.startsWith("new-") ? undefined : s.id, url: s.url, label: s.label })),
-          preferences: { ...prefs, openalexAuthorId: prefs.openalexAuthorId ?? "" },
+          preferences: { ...prefs, openalexAuthorId: prefs.openalexAuthorId ?? "", ntfyTopic: prefs.ntfyTopic ?? "" },
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Save failed");
       setProfile(data.profile);
       setSaved(data.profile);
-      setMessage({ kind: "ok", text: "Saved. Your interest profile will update on the next generation." });
+      setMessage({ kind: "ok", text: "Saved. Your interest profile updates on the next generation." });
+      router.refresh();
     } catch (e) {
       setMessage({ kind: "error", text: e instanceof Error ? e.message : "Save failed" });
     } finally {
@@ -113,14 +182,12 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
 
   return (
     <>
-      <section className="panel">
-        <h2>Reference sources</h2>
-        <p className="hint">
-          Pages that describe the person this briefing is for: personal homepage, Google Scholar, ORCID, lab or company pages, public bios.
-          They are re-read on every generation to keep the interest profile current. GitHub is excluded.
-        </p>
+      <Section
+        title="Reference sources"
+        hint="Pages that describe you: personal homepage, Google Scholar, ORCID, lab or company pages, public bios. They are re-read on every generation. GitHub is excluded."
+      >
         {profile.sources.length > 0 ? (
-          <ul className="source-rows">
+          <ul className="source-list">
             {profile.sources.map((s) => (
               <li key={s.id}>
                 <div className="u">
@@ -131,21 +198,18 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
                 </div>
                 <button
                   type="button"
-                  className="icon-btn"
+                  className="btn btn-quiet btn-sm"
                   aria-label={`Remove ${s.url}`}
                   onClick={() => setProfile({ ...profile, sources: profile.sources.filter((x) => x.id !== s.id) })}
                 >
-                  <CloseIcon size={16} />
+                  Remove
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          <div className="notice warn" style={{ marginBottom: 16 }}>
-            <span className="dot" />
-            <div>
-              <strong>No sources yet.</strong> Add at least one URL to generate a briefing.
-            </div>
+          <div className="notice warn">
+            <strong>No sources yet.</strong> Add at least one URL, then save, to generate your first briefing.
           </div>
         )}
         <div className="row">
@@ -168,35 +232,31 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSource())}
             aria-label="Source label"
           />
-          <button type="button" className="btn btn-secondary" onClick={addSource} disabled={!url.trim() || profile.sources.length >= 12}>
+          <button type="button" className="btn" onClick={addSource} disabled={!url.trim() || profile.sources.length >= 12}>
             Add source
           </button>
         </div>
-      </section>
+      </Section>
 
-      <section className="panel">
-        <h2>Preferences</h2>
-        <p className="hint">Steer what the briefing covers. Feedback on stories (“more / less like this”) is applied automatically.</p>
-
+      <Section title="Preferences" hint="What the briefing covers and how it reads. Story feedback (“more / less like this”) is applied automatically.">
         <div className="field">
           <span>Briefing language</span>
-          <div className="segmented" role="group" aria-label="Briefing language">
+          <div className="toggles" role="group" aria-label="Briefing language">
             {(["en", "zh"] as const).map((l) => (
-              <button type="button" key={l} aria-pressed={prefs.outputLanguage === l} onClick={() => setPrefs({ outputLanguage: l })}>
+              <button type="button" key={l} className="toggle" aria-pressed={prefs.outputLanguage === l} onClick={() => setPrefs({ outputLanguage: l })}>
                 {l === "en" ? "English" : "中文"}
               </button>
             ))}
           </div>
         </div>
-
         <div className="field">
           <span>Categories</span>
-          <div className="chips" style={{ marginTop: 0 }}>
+          <div className="toggles">
             {CATEGORIES.map((c: Category) => (
               <button
                 type="button"
                 key={c}
-                className="chip"
+                className="toggle"
                 aria-pressed={prefs.categories[c] !== false}
                 onClick={() => setPrefs({ categories: { ...prefs.categories, [c]: prefs.categories[c] === false } })}
               >
@@ -205,18 +265,15 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
             ))}
           </div>
         </div>
-
         <div className="field">
-          <span>Always track these topics</span>
+          <span>Always track</span>
           <TagInput value={prefs.pinnedTopics} onChange={(v) => setPrefs({ pinnedTopics: v })} placeholder="e.g. spatial metabolomics" />
         </div>
-
         <div className="field">
-          <span>Never show these topics</span>
+          <span>Never show</span>
           <TagInput value={prefs.mutedTopics} onChange={(v) => setPrefs({ mutedTopics: v })} placeholder="e.g. cryptocurrency" />
         </div>
-
-        <div className="field">
+        <label className="field">
           <span>Notes for the editor</span>
           <textarea
             className="textarea"
@@ -224,38 +281,49 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
             onChange={(e) => setPrefs({ notes: e.target.value })}
             placeholder="e.g. I am hiring a postdoc; prioritize funding calls in Canada; I care about clinical translation."
           />
-        </div>
-
-        <div className="field">
-          <span>OpenAlex author ID (optional, enables “cites your work” tracking)</span>
+        </label>
+        <label className="field">
+          <span>OpenAlex author ID</span>
           <input
             className="input"
             value={prefs.openalexAuthorId ?? ""}
             onChange={(e) => setPrefs({ openalexAuthorId: e.target.value || undefined })}
-            placeholder="A5023888391 — find yours at openalex.org"
+            placeholder="A5023888391"
           />
-        </div>
-      </section>
+          <small>Optional. Makes “papers citing your work” exact; find yours at openalex.org.</small>
+        </label>
+      </Section>
+
+      <Section title="Notifications" hint="Get a push notification when a briefing starts, needs your input, finishes or fails. Install the free ntfy app and subscribe to your topic.">
+        <label className="field">
+          <span>Your ntfy topic</span>
+          <input
+            className="input"
+            value={prefs.ntfyTopic ?? ""}
+            onChange={(e) => setPrefs({ ntfyTopic: e.target.value || undefined })}
+            placeholder="a-hard-to-guess-topic-name"
+          />
+          <small>A topic name (letters, digits, - and _) or an https://ntfy.sh/… link. Anyone who knows the name can read it, so pick something unique.</small>
+        </label>
+      </Section>
 
       <div className="save-bar">
-        {message && <span style={{ color: message.kind === "error" ? "var(--red)" : "var(--green)" }}>{message.text}</span>}
+        {message && <span className={message.kind === "error" ? "form-error" : "form-ok"}>{message.text}</span>}
         {!message && dirty && <span>Unsaved changes</span>}
-        <button type="button" className="btn btn-primary" onClick={save} disabled={!dirty || saving}>
-          {saving && <span className="spinner" />} Save
+        <button type="button" className="btn btn-solid" onClick={save} disabled={!dirty || saving}>
+          {saving && <span className="spinner" />} Save changes
         </button>
       </div>
 
-      <section className="panel">
-        <h2>Interest profile</h2>
+      <Section title="Interest profile" hint="Built from your sources by the language model and refreshed when they change.">
         {interest ? (
           <>
-            <p className="hint">
-              Version {interest.version} · updated {new Date(interest.updatedAt).toLocaleDateString()} · built from your sources by the language model.
+            <p className="dek" style={{ color: "var(--ink)" }}>
+              {interest.summary}
             </p>
-            <p style={{ fontFamily: "var(--serif)", fontSize: 20, lineHeight: 1.45, margin: "0 0 20px" }}>{interest.summary}</p>
-            <div className="topic-list">
+            <div className="topic-rows">
               {interest.topics.map((t) => (
-                <div className="topic" key={t.name}>
+                <div className="topic-row" key={t.name}>
                   <div>
                     <b>{t.name}</b>
                     <small>{[...t.keywords, ...(t.zhKeywords ?? [])].join(" · ")}</small>
@@ -263,10 +331,11 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
                   <div className="track">
                     <div className="fill" style={{ width: `${Math.round(t.weight * 100)}%` }} />
                   </div>
+                  <span className="w">{t.weight.toFixed(2)}</span>
                 </div>
               ))}
             </div>
-            <dl className="kv" style={{ marginTop: 26 }}>
+            <dl className="kv">
               {interest.person.name && (
                 <>
                   <dt>Person</dt>
@@ -277,9 +346,7 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
                 </>
               )}
               {(["people", "organizations", "companies", "venues", "products"] as const).map((k) =>
-                interest.entities[k].length ? (
-                  <FragmentRow key={k} label={k[0].toUpperCase() + k.slice(1)} value={interest.entities[k].join(", ")} />
-                ) : null,
+                interest.entities[k].length ? <Row key={k} label={k[0].toUpperCase() + k.slice(1)} value={interest.entities[k].join(", ")} /> : null,
               )}
               <dt>Scholarly record</dt>
               <dd>
@@ -291,11 +358,13 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
               <dt>Search queries</dt>
               <dd>
                 <details>
-                  <summary>{interest.queries.length} queries across {new Set(interest.queries.map((q) => q.category)).size} categories</summary>
+                  <summary>
+                    {interest.queries.length} queries across {new Set(interest.queries.map((q) => q.category)).size} categories
+                  </summary>
                   <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
                     {interest.queries.map((q, i) => (
                       <li key={i}>
-                        <span style={{ color: "var(--text-3)" }}>{CATEGORY_META[q.category].short}:</span> {q.query}
+                        <span className="muted">{CATEGORY_META[q.category].short}:</span> {q.query}
                       </li>
                     ))}
                   </ul>
@@ -304,63 +373,68 @@ export function ProfileEditor({ initial, status }: { initial: Profile; status: S
             </dl>
           </>
         ) : (
-          <p className="hint">Your interest profile is built from the sources above the first time you generate a briefing.</p>
+          <p className="body muted">Your interest profile is built from your sources the first time you generate a briefing.</p>
         )}
-      </section>
+      </Section>
 
-      <section className="panel">
-        <h2>System</h2>
+      <Section title="Usage" hint="Generations use shared search and language-model credits, so each account has a weekly allowance.">
+        <div className="usage">
+          <span className="big">{usage.used}</span>
+          <span className="meta">
+            {usage.limit === null ? "briefings in the last 7 days · no limit (admin)" : `of ${usage.limit} briefings used in the last 7 days`}
+            {usage.limit !== null && usage.used >= usage.limit && usage.nextSlotAt
+              ? ` · next available ${new Date(usage.nextSlotAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
+              : ""}
+          </span>
+        </div>
+      </Section>
+
+      <Section title="Account" hint={account.authKind === "local" ? "Local development accounts (no email)." : undefined}>
         <dl className="kv">
-          <dt>Language model</dt>
+          <dt>Email</dt>
           <dd>
-            <span className={`status-dot ${status.problems.some((p) => p.key.includes("DEEPSEEK")) ? "warn" : ""}`} />
-            {status.llm}
-          </dd>
-          <dt>Web search</dt>
-          <dd>
-            <span className={`status-dot ${status.search.length ? "" : "warn"}`} />
-            {status.search.length ? status.search.join(", ") : "Free RSS fallback only"}
-          </dd>
-          <dt>Scholarly</dt>
-          <dd>
-            <span className="status-dot" />
-            {status.scholarly.join(", ")}
-          </dd>
-          <dt>Storage</dt>
-          <dd>
-            <span className={`status-dot ${status.storage === "supabase" ? "" : "warn"}`} />
-            {status.storage === "supabase" ? "Supabase" : "Local files (development)"}
-          </dd>
-          <dt>Notifications</dt>
-          <dd>
-            <span className="status-dot" />
-            {status.ntfyTopic}
+            {account.email}
+            {account.isAdmin ? " · admin" : ""}
           </dd>
         </dl>
-        {(status.problems.length > 0 || status.advisories.length > 0) && (
-          <div className="notices">
-            {status.problems.map((p) => (
-              <div className="notice error" key={p.key}>
-                <span className="dot" />
-                <div>
+        <PasswordChange />
+      </Section>
+
+      {status && (
+        <Section title="System" hint="Visible to admins only.">
+          <dl className="kv">
+            <dt>Language model</dt>
+            <dd>{status.llm}</dd>
+            <dt>Web search</dt>
+            <dd>{status.search.length ? status.search.join(", ") : "Free RSS fallback only"}</dd>
+            <dt>Scholarly</dt>
+            <dd>{status.scholarly.join(", ")}</dd>
+            <dt>Storage</dt>
+            <dd>{status.storage === "supabase" ? "Supabase" : "Local files (development)"}</dd>
+            <dt>Owner notifications</dt>
+            <dd>{status.ntfyTopic}</dd>
+          </dl>
+          {(status.problems.length > 0 || status.advisories.length > 0) && (
+            <div className="notices" style={{ marginTop: 0 }}>
+              {status.problems.map((p) => (
+                <div className="notice error" key={p.key}>
                   <strong>{p.message}</strong> {p.action}
                 </div>
-              </div>
-            ))}
-            {status.advisories.map((a) => (
-              <div className="notice warn" key={a}>
-                <span className="dot" />
-                <div>{a}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+              {status.advisories.map((a) => (
+                <div className="notice warn" key={a}>
+                  {a}
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
     </>
   );
 }
 
-function FragmentRow({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
     <>
       <dt>{label}</dt>

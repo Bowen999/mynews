@@ -4,6 +4,7 @@ export interface Store {
   readonly kind: "supabase" | "file";
 
   getProfile(id: string): Promise<Profile | null>;
+  getProfileByOwner(ownerId: string): Promise<Profile | null>;
   saveProfile(profile: Profile): Promise<void>;
 
   getSnapshot(url: string): Promise<SourceSnapshot | null>;
@@ -17,6 +18,8 @@ export interface Store {
   tryLease(runId: string, ms: number): Promise<boolean>;
   releaseLease(runId: string): Promise<void>;
   listRuns(profileId: string, limit: number): Promise<RunSummary[]>;
+  /** Runs created since a time, for one profile or (without profileId) across all profiles. */
+  countRunsSince(sinceIso: string, profileId?: string): Promise<number>;
 
   nextEditionNumber(profileId: string): Promise<number>;
   saveEdition(edition: Edition, standaloneHtml: string): Promise<void>;

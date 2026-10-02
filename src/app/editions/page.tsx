@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { configurationProblems } from "@/lib/config";
-import { getStore, loadProfile } from "@/lib/store";
+import { profileForUser } from "@/lib/accounts";
+import { requirePageUser } from "@/lib/session";
+import { getStore } from "@/lib/store";
 import { CATEGORY_META, STAGES } from "@/lib/types";
 import { formatRange } from "@/lib/util/dates";
 
@@ -9,42 +10,35 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Archive" };
 
 export default async function Archive() {
-  if (configurationProblems().some((p) => p.key === "SUPABASE")) {
-    return (
-      <div className="container page-head">
-        <h1>Archive</h1>
-        <p>Storage is not configured yet. See the Profile page for setup steps.</p>
-      </div>
-    );
-  }
+  const user = await requirePageUser("/editions");
   const store = getStore();
-  const profile = await loadProfile(store);
-  const [editions, runs] = await Promise.all([store.listEditions(profile.id, 100), store.listRuns(profile.id, 10)]);
+  const profile = await profileForUser(user, store);
+  const [editions, runs] = await Promise.all([store.listEditions(profile.id, 200), store.listRuns(profile.id, 10)]);
   const unfinished = runs.filter((r) => r.status !== "completed");
 
   return (
-    <div className="container">
+    <div className="wrap">
       <header className="page-head">
-        <div className="kicker">Every edition, preserved</div>
-        <h1>Archive</h1>
-        <p>Each briefing is an independent edition. Open any past week, or download it as a standalone page.</p>
+        <div className="label">Every edition, preserved</div>
+        <h1 className="title-xl">Archive</h1>
+        <p className="dek">Each briefing is an independent edition. Open any past week, or download it as a standalone page.</p>
       </header>
 
       {unfinished.length > 0 && (
         <>
-          <div className="section-head">
-            <h2>Unfinished runs</h2>
-            <p>Resume from the step where they stopped</p>
-          </div>
-          <ul className="run-list">
+          <section className="section-head" style={{ marginTop: 40 }}>
+            <span className="label">Unfinished runs</span>
+            <span className="label muted">Resume where they stopped</span>
+          </section>
+          <ul className="runs">
             {unfinished.map((r) => (
               <li key={r.id}>
-                <span className={`status ${r.status}`}>{r.status.replace("_", " ")}</span>
-                <span className="grow">
+                <span className={`state ${r.status}`}>{r.status.replace("_", " ")}</span>
+                <span className="what">
                   {formatRange(r.windowStart, r.windowEnd)} · {STAGES.find((s) => s.key === r.stage)?.label}
                   {r.error ? ` — ${r.error}` : ""}
                 </span>
-                <Link className="btn btn-secondary btn-sm" href={`/runs/${r.id}`}>
+                <Link className="btn btn-sm" href={`/runs/${r.id}`}>
                   Open
                 </Link>
               </li>
@@ -54,29 +48,26 @@ export default async function Archive() {
       )}
 
       {editions.length === 0 ? (
-        <p style={{ color: "var(--text-2)", margin: "40px 0 120px" }}>No editions yet. Generate your first weekly briefing to start the archive.</p>
+        <p className="body muted" style={{ marginTop: 40 }}>
+          No editions yet. Generate your first weekly briefing to start the archive.
+        </p>
       ) : (
-        <div className="archive-grid">
+        <ol className="issues" style={{ listStyle: "none" }}>
           {editions.map((e, i) => (
-            <Link key={e.id} href={`/editions/${e.id}`} className="issue reveal" style={{ "--i": i } as React.CSSProperties}>
-              <div className="no">
-                <span>No.</span>
-                <b>{e.number}</b>
-              </div>
-              <div className="when">
-                {formatRange(e.windowStart, e.windowEnd)} · {e.itemCount} stories{e.sample ? " · sample" : ""}
-              </div>
-              <h2>{e.headline}</h2>
-              <div className="cats">
-                {e.topCategories.slice(0, 4).map((c) => (
-                  <span key={c} className={`tone-${CATEGORY_META[c]?.tone ?? "gray"}`}>
-                    {CATEGORY_META[c]?.short ?? c}
-                  </span>
-                ))}
-              </div>
-            </Link>
+            <li key={e.id} className="enter" style={{ "--i": i } as React.CSSProperties}>
+              <Link href={`/editions/${e.id}`}>
+                <span className="no">{String(e.number).padStart(2, "0")}</span>
+                <span className="h">
+                  <span className="title-m">{e.headline}</span>
+                  <div className="meta">
+                    {formatRange(e.windowStart, e.windowEnd)} · {e.itemCount} stories{e.sample ? " · sample data" : ""}
+                  </div>
+                </span>
+                <span className="c">{e.topCategories.slice(0, 3).map((c) => CATEGORY_META[c]?.short ?? c).join(" / ")}</span>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </div>
   );

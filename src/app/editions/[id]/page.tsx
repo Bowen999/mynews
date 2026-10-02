@@ -1,25 +1,40 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { EditionReader } from "@/components/EditionReader";
-import { getStore } from "@/lib/store";
+import { ownedEdition } from "@/lib/accounts";
+import { HttpError } from "@/lib/auth";
+import { EditionIndex } from "@/components/EditionIndex";
+import { currentUser, requirePageUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+async function load(id: string) {
+  const user = await requirePageUser(`/editions/${id}`);
+  try {
+    return (await ownedEdition(user, id)).edition;
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 404) notFound();
+    throw e;
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const edition = await getStore().getEdition(id);
-  return { title: edition ? `No. ${edition.number}: ${edition.headline}` : "Edition" };
+  const user = await currentUser();
+  if (!user) return { title: "Edition" };
+  try {
+    const { edition } = await ownedEdition(user, id);
+    return { title: `No. ${edition.number}: ${edition.headline}` };
+  } catch {
+    return { title: "Edition" };
+  }
 }
 
 export default async function EditionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const store = getStore();
-  const edition = await store.getEdition(id);
-  if (!edition) notFound();
-  const feedback = Object.fromEntries((await store.feedbackForEdition(edition.id)).map((f) => [f.itemId, f.signal]));
+  const edition = await load(id);
   return (
-    <div className="container">
-      <EditionReader edition={edition} initialFeedback={feedback} />
+    <div className="wrap">
+      <EditionIndex edition={edition} />
     </div>
   );
 }

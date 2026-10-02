@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { HttpError } from "./auth/types";
 import { config } from "./config";
 
 /** Public base URL for links in notifications (explicit config first, then request headers). */
@@ -16,4 +17,23 @@ export function jsonError(message: string, status = 400, extra: Record<string, u
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/** Wrap a route handler: HttpError → JSON with its status; anything else → 500. */
+export async function handleApi(fn: () => Promise<Response>): Promise<Response> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof HttpError) return jsonError(e.message, e.status, e.extra);
+    console.error("[api]", e);
+    return jsonError(errorMessage(e), 500);
+  }
+}
+
+export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T> {
+  try {
+    return (await req.json()) as T;
+  } catch {
+    throw new HttpError(400, "Invalid JSON body");
+  }
 }

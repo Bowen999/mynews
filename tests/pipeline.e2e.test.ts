@@ -10,7 +10,11 @@ beforeAll(() => {
   process.env.MOCK_MODE = "1";
   process.env.NTFY_DISABLED = "1";
   process.env.DATA_DIR = dir;
+  process.env.USER_WEEKLY_RUN_LIMIT = "10";
 });
+
+// Pipeline tests run on behalf of a regular (non-admin) account.
+const alice = { id: "u_alice", email: "alice@example.com", isAdmin: false };
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 async function drive(runId: string) {
@@ -25,20 +29,24 @@ async function drive(runId: string) {
 describe("pipeline (mock mode)", () => {
   it("asks for input when no sources are configured", async () => {
     const { startRun } = await import("../src/lib/pipeline/runner");
-    const res = await startRun({});
+    const res = await startRun({ user: alice });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.problems.map((p) => p.key)).toEqual(["SOURCES"]);
+    if (!res.ok) {
+      expect(res.status).toBe(409);
+      expect(res.problems.map((p) => p.key)).toEqual(["SOURCES"]);
+    }
   });
 
   it("generates a verified, clustered, ranked edition", async () => {
-    const { getStore, loadProfile } = await import("../src/lib/store");
+    const { getStore } = await import("../src/lib/store");
+    const { profileForUser } = await import("../src/lib/accounts");
     const { startRun } = await import("../src/lib/pipeline/runner");
     const store = getStore();
-    const profile = await loadProfile(store);
+    const profile = await profileForUser(alice, store);
     profile.sources = [{ id: "s1", url: "https://lab.example.edu/chen", addedAt: new Date().toISOString() }];
     await store.saveProfile(profile);
 
-    const res = await startRun({ baseUrl: "http://localhost:3000" });
+    const res = await startRun({ user: alice, baseUrl: "http://localhost:3000" });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const run = await drive(res.run.id);
@@ -78,7 +86,7 @@ describe("pipeline (mock mode)", () => {
     expect(html).toContain(edition.items[0].title.replace(/&/g, "&amp;"));
 
     // Profile was built and persisted.
-    const saved = await loadProfile(store);
+    const saved = await profileForUser(alice, store);
     expect(saved.interest?.topics.length).toBeGreaterThan(0);
   });
 
@@ -86,9 +94,9 @@ describe("pipeline (mock mode)", () => {
     const { getStore } = await import("../src/lib/store");
     const { startRun } = await import("../src/lib/pipeline/runner");
     const store = getStore();
-    const [first] = await store.recentEditions("default", 1);
+    const [first] = await store.recentEditions(alice.id, 1);
     const seen = new Set(first.items.flatMap((i) => i.sources.map((s) => s.url)));
-    const res = await startRun({});
+    const res = await startRun({ user: alice });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const run = await drive(res.run.id);
@@ -100,5 +108,36 @@ describe("pipeline (mock mode)", () => {
     } else {
       expect(run.error).toMatch(/No relevant stories/);
     }
+  });
+
+  it("keeps each account's editions private", async () => {
+    const { getStore } = await import("../src/lib/store");
+    const { ownedEdition, ownedRun, profileForUser } = await import("../src/lib/accounts");
+    const store = getStore();
+    const bob = { id: "u_bob", email: "bob@example.com", isAdmin: false };
+    const [aliceEdition] = await store.recentEditions(alice.id, 1);
+    const bobProfile = await profileForUser(bob, store);
+    expect(bobProfile.id).not.toBe(alice.id);
+    expect(bobProfile.sources).toEqual([]);
+    await expect(ownedEdition(bob, aliceEdition.id)).rejects.toMatchObject({ status: 404 });
+    await expect(ownedRun(bob, aliceEdition.runId)).rejects.toMatchObject({ status: 404 });
+    await expect(ownedEdition(alice, aliceEdition.id)).resolves.toMatchObject({ edition: { id: aliceEdition.id } });
+    expect(await store.listEditions(bob.id, 10)).toEqual([]);
+  });
+
+  it("enforces the weekly allowance for regular users but not admins", async () => {
+    const { startRun } = await import("../src/lib/pipeline/runner");
+    process.env.USER_WEEKLY_RUN_LIMIT = "2";
+    const res = await startRun({ user: alice });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(429);
+      expect(res.problems[0].key).toBe("QUOTA");
+      expect(res.problems[0].message).toMatch(/2 of 2/);
+    }
+    const admin = { ...alice, isAdmin: true };
+    const adminRes = await startRun({ user: admin });
+    expect(adminRes.ok).toBe(true);
+    process.env.USER_WEEKLY_RUN_LIMIT = "10";
   });
 });

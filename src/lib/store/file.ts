@@ -48,6 +48,9 @@ export class FileStore implements Store {
   getProfile(id: string) {
     return this.read<Profile>(this.p("profiles", `${id}.json`));
   }
+  async getProfileByOwner(ownerId: string) {
+    return (await this.list<Profile>("profiles")).find((p) => p.ownerId === ownerId) ?? null;
+  }
   saveProfile(profile: Profile) {
     return this.write(this.p("profiles", `${profile.id}.json`), profile);
   }
@@ -84,6 +87,10 @@ export class FileStore implements Store {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit)
       .map(summarizeRun);
+  }
+
+  async countRunsSince(sinceIso: string, profileId?: string) {
+    return (await this.list<Run>("runs")).filter((r) => r.createdAt >= sinceIso && (!profileId || r.profileId === profileId)).length;
   }
 
   async nextEditionNumber(profileId: string) {

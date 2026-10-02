@@ -29,6 +29,7 @@ function check<T>(res: { data: T; error: { message: string; code?: string } | nu
 
 const profileToRow = (p: Profile): Row => ({
   id: p.id,
+  owner_id: p.ownerId ?? null,
   name: p.name,
   sources: p.sources,
   interest: p.interest,
@@ -39,6 +40,7 @@ const profileToRow = (p: Profile): Row => ({
 
 const rowToProfile = (r: Row): Profile => ({
   id: r.id as string,
+  ownerId: (r.owner_id as string | null) ?? null,
   name: r.name as string,
   sources: (r.sources as Profile["sources"]) ?? [],
   interest: (r.interest as Profile["interest"]) ?? null,
@@ -58,6 +60,7 @@ const runToRow = (r: Run): Row => ({
   window_start: r.windowStart,
   window_end: r.windowEnd,
   base_url: r.baseUrl ?? null,
+  notify: r.notify ?? null,
   error: r.error ?? null,
   edition_id: r.editionId ?? null,
   required_inputs: r.requiredInputs ?? null,
@@ -77,6 +80,7 @@ const rowToRun = (r: Row): Run => ({
   windowStart: r.window_start as string,
   windowEnd: r.window_end as string,
   baseUrl: (r.base_url as string) ?? undefined,
+  notify: (r.notify as Run["notify"]) ?? undefined,
   error: (r.error as string) ?? undefined,
   editionId: (r.edition_id as string) ?? undefined,
   requiredInputs: (r.required_inputs as Run["requiredInputs"]) ?? undefined,
@@ -152,6 +156,10 @@ export class SupabaseStore implements Store {
     const data = check(await this.db.from("profiles").select("*").eq("id", id).maybeSingle(), "getProfile");
     return data ? rowToProfile(data) : null;
   }
+  async getProfileByOwner(ownerId: string) {
+    const data = check(await this.db.from("profiles").select("*").eq("owner_id", ownerId).limit(1).maybeSingle(), "getProfileByOwner");
+    return data ? rowToProfile(data) : null;
+  }
   async saveProfile(profile: Profile) {
     check(await this.db.from("profiles").upsert(profileToRow(profile)), "saveProfile");
   }
@@ -212,6 +220,14 @@ export class SupabaseStore implements Store {
       editionId: (r.edition_id as string) ?? undefined,
       error: (r.error as string) ?? undefined,
     }));
+  }
+
+  async countRunsSince(sinceIso: string, profileId?: string) {
+    let q = this.db.from("runs").select("id", { count: "exact", head: true }).gte("created_at", sinceIso);
+    if (profileId) q = q.eq("profile_id", profileId);
+    const res = await q;
+    if (res.error) throw new Error(describeSupabaseError("countRunsSince", res.error));
+    return res.count ?? 0;
   }
 
   async nextEditionNumber(profileId: string) {

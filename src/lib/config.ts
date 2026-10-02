@@ -5,6 +5,18 @@ function env(name: string): string | undefined {
   return v && v.trim() ? v.trim() : undefined;
 }
 
+function list(v: string | undefined): string[] {
+  return (v ?? "")
+    .split(/[,\s]+/)
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function intEnv(name: string, fallback: number): number {
+  const n = Number(env(name));
+  return Number.isFinite(n) && env(name) !== undefined && n >= 0 ? Math.floor(n) : fallback;
+}
+
 export const config = {
   get mockMode() {
     return env("MOCK_MODE") === "1";
@@ -80,8 +92,42 @@ export const config = {
     },
   },
   auth: {
-    get password() {
-      return env("APP_PASSWORD");
+    /** Public anon / publishable key, used server-side only for Supabase Auth. */
+    get supabaseAnonKey() {
+      return (
+        env("SUPABASE_ANON_KEY") ??
+        env("SUPABASE_PUBLISHABLE_KEY") ??
+        env("NEXT_PUBLIC_SUPABASE_ANON_KEY") ??
+        env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+      );
+    },
+    /** Emails with admin rights: no usage limits, owner notifications, legacy data claim. */
+    get adminEmails() {
+      return list(env("ADMIN_EMAILS"));
+    },
+    /** If set (with or without allowed domains), only these emails may sign up / sign in. */
+    get allowedEmails() {
+      return list(env("AUTH_ALLOWED_EMAILS"));
+    },
+    get allowedDomains() {
+      return list(env("AUTH_ALLOWED_DOMAINS")).map((d) => d.replace(/^@/, ""));
+    },
+    get signupsDisabled() {
+      return env("SIGNUPS_DISABLED") === "1";
+    },
+    /** Secret for signing local-dev session cookies (not used with Supabase Auth). */
+    get localSecret() {
+      return env("AUTH_SECRET") ?? "mynews-local-development-secret";
+    },
+  },
+  limits: {
+    /** Generations per user per rolling 7 days (admins are exempt). 0 disables the limit. */
+    get userWeekly() {
+      return intEnv("USER_WEEKLY_RUN_LIMIT", 3);
+    },
+    /** Generations across all users per rolling 24 hours (admins are exempt). 0 disables. */
+    get globalDaily() {
+      return intEnv("GLOBAL_DAILY_RUN_LIMIT", 30);
     },
   },
   get baseUrl() {
@@ -109,6 +155,11 @@ export function hasSupabase(): boolean {
   return Boolean(config.store.supabaseUrl && config.store.supabaseKey);
 }
 
+/** Supabase Auth is used whenever the project URL and anon/publishable key are configured. */
+export function hasSupabaseAuth(): boolean {
+  return Boolean(config.store.supabaseUrl && config.auth.supabaseAnonKey);
+}
+
 export function webSearchProviders(): string[] {
   const list: string[] = [];
   if (config.search.tavilyKey) list.push("tavily");
@@ -133,7 +184,14 @@ export function configurationProblems(): RequiredInput[] {
     problems.push({
       key: "SUPABASE",
       message: "Supabase is not configured, so briefings cannot be saved on Vercel.",
-      action: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, run supabase/migrations/0001_init.sql, then redeploy.",
+      action: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, run the SQL files in supabase/migrations/, then redeploy.",
+    });
+  }
+  if (config.onVercel && !hasSupabaseAuth()) {
+    problems.push({
+      key: "SUPABASE_AUTH",
+      message: "Sign-in is not configured.",
+      action: "Set SUPABASE_ANON_KEY (Project Settings → API → anon / publishable key) and redeploy.",
     });
   }
   return problems;
@@ -157,8 +215,11 @@ export function configurationAdvisories(): string[] {
   if (!hasSupabase()) {
     notes.push("Supabase not configured: editions are stored on the local filesystem (.data/). Fine for local use only.");
   }
-  if (!config.auth.password && config.onVercel) {
-    notes.push("APP_PASSWORD not set: anyone with the URL can start generations that use your API credits.");
+  if (!config.auth.adminEmails.length) {
+    notes.push("ADMIN_EMAILS not set: no account has admin rights (unlimited generations, system status).");
+  }
+  if (!hasSupabaseAuth()) {
+    notes.push("Supabase Auth not configured: accounts are stored locally (.data/). Fine for local development only.");
   }
   return notes;
 }

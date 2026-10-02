@@ -1,37 +1,36 @@
-"use client";
-
 import { Fragment } from "react";
 import { sourceNumber, tokenize } from "@/lib/render/format";
 
 interface Props {
   text: string;
-  /** Citation click handler; when omitted, citation markers are hidden (clean previews). */
-  onCite?: (sourceId: string) => void;
-  onItemRef?: (rank: number) => void;
+  /** Render [S1] markers as superscript links to #source-1. When false, markers are dropped. */
+  cite?: boolean;
+  /** Link target for item references like [3] in edition text. */
+  itemHref?: (rank: number) => string;
 }
 
-/** Renders model prose with [S1] citations as superscript buttons and [3] as item references. */
-export function Prose({ text, onCite, onItemRef }: Props) {
-  const tokens = tokenize(text);
+/** Model prose with citation superscripts (server- and client-safe, no interactivity needed). */
+export function Prose({ text, cite = true, itemHref }: Props) {
   return (
     <>
-      {tokens.map((t, i) => {
-        if (t.type === "text") return <Fragment key={i}>{onCite ? t.value : t.value.replace(/\s+([.,;:!?。，；：])/g, "$1")}</Fragment>;
+      {tokenize(text).map((t, i) => {
+        if (t.type === "text") return <Fragment key={i}>{cite ? t.value : t.value.replace(/\s+([.,;:!?。，；：])/g, "$1")}</Fragment>;
         if (t.type === "cite") {
-          if (!onCite) return null;
+          if (!cite) return null;
+          const n = sourceNumber(t.id);
           return (
             <sup className="cite" key={i}>
-              <button type="button" onClick={() => onCite(t.id)} aria-label={`Source ${sourceNumber(t.id)}`}>
-                {sourceNumber(t.id)}
-              </button>
+              <a href={`#source-${n}`} aria-label={`Source ${n}`}>
+                {n}
+              </a>
             </sup>
           );
         }
-        if (!onItemRef) return <Fragment key={i}>{`[${t.n}]`}</Fragment>;
+        if (!itemHref) return <Fragment key={i}>{`[${t.n}]`}</Fragment>;
         return (
-          <button type="button" key={i} className="itemref" onClick={() => onItemRef(t.n)} aria-label={`Open story ${t.n}`}>
+          <a key={i} className="itemref" href={itemHref(t.n)} aria-label={`Story ${t.n}`}>
             {t.n}
-          </button>
+          </a>
         );
       })}
     </>

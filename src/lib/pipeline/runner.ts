@@ -1,8 +1,11 @@
-import { configurationProblems } from "../config";
+import { profileForUser } from "../accounts";
+import type { AuthUser } from "../auth/types";
+import { config, configurationProblems } from "../config";
 import { getLLM } from "../llm";
 import type { LLMProvider } from "../llm/types";
-import { notify } from "../notify";
-import { getStore, loadProfile } from "../store";
+import { notify, topicUrl, type NotifyKind } from "../notify";
+import { checkQuota } from "../quota";
+import { getStore, loadProfileById } from "../store";
 import { STAGES, type Profile, type RequiredInput, type Run, type StageKey } from "../types";
 import { Deadline } from "../util/concurrency";
 import { formatRange, previousWeekWindow } from "../util/dates";
@@ -41,20 +44,40 @@ export function databaseProblem(e: unknown): RequiredInput {
   return {
     key: "DATABASE",
     message: `Could not read from the database (${(e instanceof Error ? e.message : String(e)).slice(0, 400)}).`,
-    action: "Run supabase/migrations/0001_init.sql in the Supabase SQL editor and check SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.",
+    action: "Run the SQL files in supabase/migrations/ in the Supabase SQL editor and check SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.",
   };
 }
 
-export type StartResult = { ok: true; run: Run; resumed: boolean } | { ok: false; problems: RequiredInput[] };
+/** Notification targets: the user's own topic, plus the owner topic for admins. */
+export function notifyTargets(user: AuthUser, profile: Profile): NonNullable<Run["notify"]> {
+  const topics: string[] = [];
+  const personal = topicUrl(profile.preferences.ntfyTopic);
+  if (personal) topics.push(personal);
+  if (user.isAdmin && !topics.includes(config.notify.topicUrl)) topics.push(config.notify.topicUrl);
+  return { topics, ownerAlerts: !user.isAdmin };
+}
 
-/** Validate configuration, then create a run (or return one already in progress). */
-export async function startRun(opts: { baseUrl?: string }): Promise<StartResult> {
+/** Send a run notification; failures of other users' runs also alert the owner (without personal data). */
+async function notifyRun(run: Run, kind: NotifyKind, message: string, click?: string) {
+  const targets = run.notify ?? { topics: [config.notify.topicUrl], ownerAlerts: false };
+  await notify(kind, message, { click, topics: targets.topics });
+  if (kind === "failed" && targets.ownerAlerts) {
+    await notify("failed", `A user's generation failed. ${message}`.slice(0, 500), { topics: [config.notify.topicUrl] });
+  }
+}
+
+export type StartResult =
+  | { ok: true; run: Run; resumed: boolean }
+  | { ok: false; problems: RequiredInput[]; status: number };
+
+/** Validate configuration and usage limits, then create a run (or return one already in progress). */
+export async function startRun(opts: { user: AuthUser; baseUrl?: string }): Promise<StartResult> {
   const store = getStore();
   const problems = configurationProblems();
   let profile: Profile | null = null;
   if (!problems.some((p) => p.key === "SUPABASE")) {
     try {
-      profile = await loadProfile(store);
+      profile = await profileForUser(opts.user, store);
     } catch (e) {
       problems.push(databaseProblem(e));
     }
@@ -67,10 +90,12 @@ export async function startRun(opts: { baseUrl?: string }): Promise<StartResult>
     });
   }
   if (problems.length) {
+    const topics = profile ? notifyTargets(opts.user, profile).topics : opts.user.isAdmin ? [config.notify.topicUrl] : [];
     await notify("input_required", problems.map((p) => `${p.message} ${p.action ?? ""}`.trim()).join("\n"), {
       click: opts.baseUrl ? `${opts.baseUrl}/profile` : undefined,
+      topics,
     });
-    return { ok: false, problems };
+    return { ok: false, problems, status: 409 };
   }
 
   const active = (await store.listRuns(profile!.id, 5)).find(
@@ -79,6 +104,12 @@ export async function startRun(opts: { baseUrl?: string }): Promise<StartResult>
   if (active) {
     const run = await store.getRun(active.id);
     if (run) return { ok: true, run, resumed: true };
+  }
+
+  const quota = await checkQuota(opts.user, profile!, store);
+  if (!quota.allowed) {
+    const when = quota.nextSlotAt ? ` Your next briefing is available on ${new Date(quota.nextSlotAt).toUTCString().slice(0, 22)} UTC.` : "";
+    return { ok: false, problems: [{ key: "QUOTA", message: quota.reason ?? "Usage limit reached.", action: when.trim() || undefined }], status: 429 };
   }
 
   const w = previousWeekWindow();
@@ -94,13 +125,12 @@ export async function startRun(opts: { baseUrl?: string }): Promise<StartResult>
     windowStart: w.start.toISOString(),
     windowEnd: w.end.toISOString(),
     baseUrl: opts.baseUrl,
+    notify: notifyTargets(opts.user, profile!),
     createdAt: now,
     updatedAt: now,
   };
   await store.createRun(run);
-  await notify("started", `Generating the edition for ${formatRange(run.windowStart, run.windowEnd)} from ${profile!.sources.length} reference source(s).`, {
-    click: link(run, `/runs/${run.id}`),
-  });
+  await notifyRun(run, "started", `Generating the edition for ${formatRange(run.windowStart, run.windowEnd)} from ${profile!.sources.length} reference source(s).`, link(run, `/runs/${run.id}`));
   return { ok: true, run, resumed: false };
 }
 
@@ -114,7 +144,11 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
   if (run.status !== "running") return { run };
   if (!(await store.tryLease(runId, LEASE_MS))) return { run, busy: true };
 
-  const profile = await loadProfile(store);
+  const profile = await loadProfileById(run.profileId, store);
+  if (!profile) {
+    await store.releaseLease(runId);
+    throw new Error("The profile for this run no longer exists");
+  }
   const deadline = new Deadline(STEP_BUDGET_MS);
   const stageIndex = STAGES.findIndex((s) => s.key === run.stage);
   const progress = run.progress[stageIndex];
@@ -173,10 +207,11 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     await save();
     if (run.status === "completed" && run.editionId) {
       const edition = await store.getEdition(run.editionId);
-      await notify(
+      await notifyRun(
+        run,
         "completed",
         `Edition No. ${edition?.number ?? "?"} is ready: ${edition?.headline ?? ""} (${edition?.items.length ?? 0} stories, ${formatRange(run.windowStart, run.windowEnd)}).`,
-        { click: link(run, `/editions/${run.editionId}`) },
+        link(run, `/editions/${run.editionId}`),
       );
     }
   } catch (e) {
@@ -186,9 +221,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
       progress.status = "failed";
       ctx.log("warn", e.message);
       await save();
-      await notify("input_required", e.inputs.map((i) => `${i.message} ${i.action ?? ""}`.trim()).join("\n"), {
-        click: link(run, "/profile"),
-      });
+      await notifyRun(run, "input_required", e.inputs.map((i) => `${i.message} ${i.action ?? ""}`.trim()).join("\n"), link(run, "/profile"));
     } else {
       const message = e instanceof Error ? e.message : String(e);
       run.status = "failed";
@@ -197,7 +230,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
       progress.finishedAt = new Date().toISOString();
       ctx.log("error", `${STAGES[stageIndex].label} failed: ${message}`);
       await save();
-      await notify("failed", `Stage "${STAGES[stageIndex].label}" failed: ${message.slice(0, 300)}`, { click: link(run, `/runs/${run.id}`) });
+      await notifyRun(run, "failed", `Stage "${STAGES[stageIndex].label}" failed: ${message.slice(0, 300)}`, link(run, `/runs/${run.id}`));
     }
   } finally {
     await store.releaseLease(runId).catch(() => undefined);

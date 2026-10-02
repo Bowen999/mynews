@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
-import { errorMessage, jsonError } from "@/lib/http";
+import { ownedRun } from "@/lib/accounts";
+import { handleApi } from "@/lib/http";
 import { toRunView } from "@/lib/run-view";
-import { getStore } from "@/lib/store";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  try {
-    const run = await getStore().getRun(id);
-    if (!run) return jsonError("Run not found", 404);
+  return handleApi(async () => {
+    const { id } = await params;
+    const { run } = await ownedRun(await requireUser(), id);
     return NextResponse.json({ run: toRunView(run) });
-  } catch (e) {
-    return jsonError(errorMessage(e), 500);
-  }
+  });
 }

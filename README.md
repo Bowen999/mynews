@@ -14,6 +14,10 @@ never from the model. Generated claims that can't be matched to a source are rem
 Every run produces an independent **edition** that is kept in the archive. Each edition is also saved as
 a self-contained interactive HTML page that you can open or download.
 
+**Accounts.** Anyone you allow can create an account and get briefings about their own work. Each account has
+its own reference sources, interest profile, editions, feedback and ntfy topic, and nobody can see another account's data.
+Weekly usage limits protect your API credits; admins are exempt.
+
 - **Stack:** Next.js 16 (App Router) · Vercel · Supabase (Postgres) · DeepSeek API · Tavily/Exa/Serper/Brave search · OpenAlex & arXiv · ntfy.sh
 - **No self-managed server:** everything runs as Vercel functions plus a hosted Supabase database.
 
@@ -62,21 +66,38 @@ It never waits silently: input problems are reported both in the UI and through 
 
 ## Deploy (Vercel + Supabase)
 
-1. **Supabase:** create a project, open *SQL Editor*, and run [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-   Copy the **Project URL** (`https://<project-ref>.supabase.co`, not the `supabase.com/dashboard/...` link) and the
-   **service role / secret** key, not the anon/publishable key (*Project Settings → API*). RLS is enabled with no policies,
-   so only the server (service role) can read or write.
-2. **Search API:** create a [Tavily](https://tavily.com) key (the free tier is enough for weekly use). Exa, Serper or
-   Brave also work. You can set more than one; they are tried in order.
-3. **Vercel:** import this GitHub repo, then add the environment variables from [`.env.example`](.env.example)
-   (*Settings → Environment Variables*). The minimum is:
-   `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_PASSWORD`.
+1. **Supabase database:** create a project, open *SQL Editor*, and run both files in order:
+   [`0001_init.sql`](supabase/migrations/0001_init.sql), then [`0002_accounts.sql`](supabase/migrations/0002_accounts.sql).
+   RLS is enabled with no policies, so only the server (service role) can read or write data.
+2. **Supabase keys** (*Project Settings → API*):
+   - the **Project URL** (`https://<project-ref>.supabase.co`, not the `supabase.com/dashboard/...` link);
+   - the **service role / secret** key, used for data;
+   - the **anon / publishable** key, used for sign-in.
+   Both keys are only ever used on the server.
+3. **Supabase Auth** (*Authentication → URL Configuration*):
+   - set **Site URL** to your Vercel URL;
+   - add `https://<your-app>/auth/callback` to **Redirect URLs**, so confirmation and password-reset emails land back in the app.
+   Under *Authentication → Sign In / Providers → Email* you can turn **Confirm email** off for frictionless sign-up.
+   Supabase's built-in mailer sends only a few emails per hour; add custom SMTP if you expect many users.
+4. **Search API:** create a [Tavily](https://tavily.com) key. Exa, Serper or Brave also work; you can set several and they are tried in order.
+5. **Vercel:** import this GitHub repo and add the environment variables from [`.env.example`](.env.example). The minimum is:
+   `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ADMIN_EMAILS`.
+   Optionally restrict who can join with `AUTH_ALLOWED_EMAILS` / `AUTH_ALLOWED_DOMAINS`, or close sign-up with `SIGNUPS_DISABLED=1`.
    Deploy.
-4. Open the site, go to **Profile**, add your reference URLs, and press **Generate Weekly Briefing**.
-   Subscribe to `lipid-plus` in the ntfy app to receive notifications.
+6. Open the site, create your account with the email listed in `ADMIN_EMAILS`, add your reference URLs on **Profile**,
+   and press **Generate Weekly Briefing**. If you used the earlier single-user version, the first admin to sign in
+   takes over its profile and editions.
 
 > Fluid compute (on by default) allows the 300 s step duration on every plan. The app has no cron job:
-> each briefing is started manually, as requested.
+> each briefing is started manually.
+
+### Notifications
+
+- Each user can set a personal ntfy topic on the Profile page. They get notified when a briefing starts, needs input,
+  completes or fails.
+- Admins also receive their notifications on the owner topic (`NTFY_TOPIC_URL`, default `https://ntfy.sh/lipid-plus`).
+  When another user's generation fails, the owner topic gets an alert without any personal details.
+- Personal topics must be ntfy.sh topic names, so the server never posts to arbitrary URLs. `NTFY_TOKEN` is only sent to the owner topic.
 
 ## Run locally
 
@@ -86,7 +107,8 @@ cp .env.example .env.local          # fill in keys; without Supabase, data goes 
 npm run dev                         # http://localhost:3000
 ```
 
-Offline demo with fictional sample data and a mock LLM (no keys or network needed):
+Without Supabase Auth configured, accounts are stored locally in `./.data/users.json` (development only; no email,
+so password reset by email is unavailable). Offline demo with fictional sample data and a mock LLM (no keys or network needed):
 
 ```bash
 MOCK_MODE=1 NTFY_DISABLED=1 npm run dev
@@ -106,9 +128,15 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 | `JINA_API_KEY` | Optional; higher limits for the Jina Reader extraction fallback. |
 | `OPENALEX_API_KEY`, `OPENALEX_MAILTO` | Optional; OpenAlex has a small keyless daily budget. |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Storage; required on Vercel. |
-| `NTFY_TOPIC_URL`, `NTFY_TOKEN`, `NTFY_DISABLED` | Notifications. Default topic `https://ntfy.sh/lipid-plus`. |
-| `APP_PASSWORD` | Password gate for all pages and APIs (recommended on public deployments). |
-| `APP_BASE_URL` | Base URL for links in notifications. |
+| `SUPABASE_ANON_KEY` | Sign-in (Supabase Auth, server-side only); required on Vercel. `SUPABASE_PUBLISHABLE_KEY` also works. |
+| `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, system status, owner notifications. |
+| `AUTH_ALLOWED_EMAILS`, `AUTH_ALLOWED_DOMAINS` | Optional allow-list (e.g. `ualberta.ca`). Empty means anyone may sign up. |
+| `SIGNUPS_DISABLED` | `1` closes sign-up to everyone except admins. |
+| `USER_WEEKLY_RUN_LIMIT` | Generations per user per rolling 7 days (default 3; `0` = unlimited). |
+| `GLOBAL_DAILY_RUN_LIMIT` | Generations across all non-admin users per 24 h (default 30; `0` = unlimited). |
+| `NTFY_TOPIC_URL`, `NTFY_TOKEN`, `NTFY_DISABLED` | Owner notifications. Default topic `https://ntfy.sh/lipid-plus`. |
+| `APP_BASE_URL` | Base URL for links in notifications and auth emails. |
+| `AUTH_SECRET` | Only for local development accounts (signs the session cookie). |
 
 ## Project layout
 
@@ -118,8 +146,10 @@ src/lib/search/       Tavily, Exa, Serper, Brave, OpenAlex, arXiv, Bing/Google N
 src/lib/extract/      page fetching, Readability extraction, date detection (meta, JSON-LD, WeChat), Scholar parser
 src/lib/pipeline/     the eight stages, prompts, verifier, ranking, runner (leases, resume, notifications)
 src/lib/store/        Supabase store and local file store behind one interface
+src/lib/auth/         Supabase Auth (server-side cookies) and local dev accounts behind one interface; allow-list policy
+src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.ts usage limits
 src/lib/render/       standalone HTML edition renderer
-src/components/       editorial UI: edition reader, story sheet, progress, profile editor
+src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms
 supabase/migrations/  database schema
 tests/                vitest suites (parsers, verification, ranking, providers, end-to-end mock pipeline)
 ```

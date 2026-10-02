@@ -18,10 +18,29 @@ function headerSafe(value: string): string {
 }
 
 /**
- * Send a concise ntfy.sh notification. Never throws: notification failures must not break
- * the generation pipeline.
+ * Accept a bare ntfy topic name or an https://ntfy.sh/<topic> URL. Other hosts are rejected so a
+ * user-supplied topic can never make the server call arbitrary URLs.
  */
-export async function notify(kind: NotifyKind, message: string, opts: { click?: string } = {}): Promise<boolean> {
+export function topicUrl(input: string | undefined | null): string | null {
+  let v = (input ?? "").trim();
+  if (!v) return null;
+  const m = v.match(/^https:\/\/ntfy\.sh\/([^/?#]+)\/?$/i);
+  if (m) v = m[1];
+  return /^[A-Za-z0-9_-]{1,64}$/.test(v) ? `https://ntfy.sh/${v}` : null;
+}
+
+/**
+ * Send a concise ntfy.sh notification to each topic (defaults to the owner topic). Never throws:
+ * notification failures must not break the generation pipeline.
+ */
+export async function notify(kind: NotifyKind, message: string, opts: { click?: string; topics?: string[] } = {}): Promise<boolean> {
+  const topics = opts.topics ?? [config.notify.topicUrl];
+  if (!topics.length) return false;
+  const results = await Promise.all(topics.map((t) => sendOne(t, kind, message, opts.click)));
+  return results.some(Boolean);
+}
+
+async function sendOne(topic: string, kind: NotifyKind, message: string, click?: string): Promise<boolean> {
   if (config.notify.disabled) return false;
   const preset = PRESETS[kind];
   const headers: Record<string, string> = {
@@ -30,10 +49,11 @@ export async function notify(kind: NotifyKind, message: string, opts: { click?: 
     Priority: preset.priority,
     "Content-Type": "text/plain; charset=utf-8",
   };
-  if (opts.click) headers.Click = opts.click;
-  if (config.notify.token) headers.Authorization = `Bearer ${config.notify.token}`;
+  if (click) headers.Click = click;
+  // The access token belongs to the owner's topic only; never send it to user topics.
+  if (config.notify.token && topic === config.notify.topicUrl) headers.Authorization = `Bearer ${config.notify.token}`;
   try {
-    const res = await fetch(config.notify.topicUrl, {
+    const res = await fetch(topic, {
       method: "POST",
       headers,
       body: message.slice(0, 1000),

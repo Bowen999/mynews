@@ -1,27 +1,33 @@
 import type { Metadata } from "next";
+import { profileForUser } from "@/lib/accounts";
 import { ProfileEditor } from "@/components/ProfileEditor";
-import { configurationProblems } from "@/lib/config";
+import { hasSupabaseAuth } from "@/lib/config";
+import { checkQuota } from "@/lib/quota";
+import { requirePageUser } from "@/lib/session";
 import { systemStatus } from "@/lib/status";
-import { loadProfile } from "@/lib/store";
-import { defaultPreferences, type Profile } from "@/lib/types";
+import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
-  const status = systemStatus();
-  const storageMissing = configurationProblems().some((p) => p.key === "SUPABASE");
-  const profile: Profile = storageMissing
-    ? { id: "default", name: "My briefing", sources: [], interest: null, preferences: defaultPreferences(), createdAt: "", updatedAt: "" }
-    : await loadProfile();
+  const user = await requirePageUser("/profile");
+  const store = getStore();
+  const profile = await profileForUser(user, store);
+  const quota = await checkQuota(user, profile, store);
   return (
-    <div className="container narrow">
-      <header className="page-head" style={{ paddingBottom: 28 }}>
-        <div className="kicker">Personalization</div>
-        <h1>Profile &amp; sources</h1>
-        <p>Who the briefing is for, what to emphasize, and how the system is configured.</p>
+    <div className="wrap">
+      <header className="page-head">
+        <div className="label">Personalization</div>
+        <h1 className="title-xl">Profile &amp; settings</h1>
+        <p className="dek">Who your briefing is about, what to emphasize, and how you are notified.</p>
       </header>
-      <ProfileEditor initial={profile} status={status} />
+      <ProfileEditor
+        initial={profile}
+        status={user.isAdmin ? systemStatus() : null}
+        usage={{ used: quota.used, limit: quota.limit, nextSlotAt: quota.nextSlotAt }}
+        account={{ email: user.email, isAdmin: user.isAdmin, authKind: hasSupabaseAuth() ? "supabase" : "local" }}
+      />
     </div>
   );
 }

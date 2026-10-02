@@ -7,44 +7,35 @@ import type { Store } from "./types";
 
 export type { Store } from "./types";
 
-export const DEFAULT_PROFILE_ID = "default";
+/** Profile id used by the earlier single-user version; an admin claims it on first sign-in. */
+export const LEGACY_PROFILE_ID = "default";
 
 let cached: Store | undefined;
 
+/** Directory for the file store and local development accounts. */
+export function localDataDir(): string {
+  return config.onVercel ? "/tmp/mynews-data" : path.resolve(/*turbopackIgnore: true*/ process.cwd(), config.store.dataDir);
+}
+
 export function getStore(): Store {
   if (cached) return cached;
-  if (hasSupabase()) {
-    cached = new SupabaseStore(config.store.supabaseUrl!, config.store.supabaseKey!);
-  } else {
-    const dir = config.onVercel ? "/tmp/mynews-data" : path.resolve(/*turbopackIgnore: true*/ process.cwd(), config.store.dataDir);
-    cached = new FileStore(dir);
-  }
+  cached = hasSupabase() ? new SupabaseStore(config.store.supabaseUrl!, config.store.supabaseKey!) : new FileStore(localDataDir());
   return cached;
 }
 
-/** Load the single default profile, creating an empty one on first use. */
-export async function loadProfile(store = getStore()): Promise<Profile> {
-  const existing = await store.getProfile(DEFAULT_PROFILE_ID);
-  if (existing) {
-    // Backfill preference keys added in later versions.
-    const defaults = defaultPreferences();
-    existing.preferences = {
-      ...defaults,
-      ...existing.preferences,
-      categories: { ...defaults.categories, ...(existing.preferences?.categories ?? {}) },
-    };
-    return existing;
-  }
-  const now = new Date().toISOString();
-  const profile: Profile = {
-    id: DEFAULT_PROFILE_ID,
-    name: "My briefing",
-    sources: [],
-    interest: null,
-    preferences: defaultPreferences(),
-    createdAt: now,
-    updatedAt: now,
+/** Backfill preference keys added in later versions. */
+export function withPreferenceDefaults(profile: Profile): Profile {
+  const defaults = defaultPreferences();
+  profile.preferences = {
+    ...defaults,
+    ...profile.preferences,
+    categories: { ...defaults.categories, ...(profile.preferences?.categories ?? {}) },
   };
-  await store.saveProfile(profile);
   return profile;
+}
+
+/** Load a profile by id (used by the pipeline, which runs on behalf of the run's owner). */
+export async function loadProfileById(id: string, store = getStore()): Promise<Profile | null> {
+  const p = await store.getProfile(id);
+  return p ? withPreferenceDefaults(p) : null;
 }

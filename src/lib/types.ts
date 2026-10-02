@@ -116,6 +116,8 @@ export interface Preferences {
   notes: string;
   /** Force a specific OpenAlex author id (e.g. "A5023888391") when auto-resolution is ambiguous. */
   openalexAuthorId?: string;
+  /** Personal ntfy topic (name or full URL) for this account's notifications. */
+  ntfyTopic?: string;
 }
 
 export function defaultPreferences(): Preferences {
@@ -125,6 +127,8 @@ export function defaultPreferences(): Preferences {
 
 export interface Profile {
   id: string;
+  /** Account that owns this profile (auth user id). */
+  ownerId?: string | null;
   name: string;
   sources: ReferenceSource[];
   interest: InterestProfile | null;
@@ -325,6 +329,8 @@ export interface Run {
   windowStart: string;
   windowEnd: string;
   baseUrl?: string;
+  /** Where notifications for this run go (resolved when the run starts). */
+  notify?: { topics: string[]; ownerAlerts: boolean };
   error?: string;
   editionId?: string;
   requiredInputs?: RequiredInput[];

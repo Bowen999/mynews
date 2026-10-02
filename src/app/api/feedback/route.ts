@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { errorMessage, jsonError } from "@/lib/http";
+import { ownedEdition } from "@/lib/accounts";
+import { HttpError } from "@/lib/auth";
+import { handleApi, readJson } from "@/lib/http";
+import { requireUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
 import { newId } from "@/lib/util/text";
 
@@ -10,14 +13,15 @@ const Schema = z.object({ editionId: z.string(), itemId: z.string(), signal: z.u
 
 /** "More like this" / "Less like this" signals feed into the next interest-profile update. */
 export async function POST(req: Request) {
-  const parsed = Schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return jsonError("Invalid feedback");
-  const { editionId, itemId, signal } = parsed.data;
-  try {
+  return handleApi(async () => {
+    const user = await requireUser();
+    const parsed = Schema.safeParse(await readJson(req));
+    if (!parsed.success) throw new HttpError(400, "Invalid feedback");
+    const { editionId, itemId, signal } = parsed.data;
+    const { edition } = await ownedEdition(user, editionId);
+    const item = edition.items.find((i) => i.id === itemId);
+    if (!item) throw new HttpError(404, "Item not found");
     const store = getStore();
-    const edition = await store.getEdition(editionId);
-    const item = edition?.items.find((i) => i.id === itemId);
-    if (!edition || !item) return jsonError("Item not found", 404);
     if (signal === 0) await store.clearFeedback(editionId, itemId);
     else
       await store.setFeedback({
@@ -31,7 +35,5 @@ export async function POST(req: Request) {
         createdAt: new Date().toISOString(),
       });
     return NextResponse.json({ ok: true, signal });
-  } catch (e) {
-    return jsonError(errorMessage(e), 500);
-  }
+  });
 }

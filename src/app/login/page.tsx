@@ -1,51 +1,12 @@
-"use client";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { AuthPage } from "@/components/AuthPage";
+import { currentUser } from "@/lib/session";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Sign in" };
 
-function LoginForm() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-    setBusy(false);
-    if (!res.ok) {
-      setError("That password is not correct.");
-      return;
-    }
-    const next = params.get("next");
-    router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
-    router.refresh();
-  };
-
-  return (
-    <div className="login">
-      <form onSubmit={submit}>
-        <h1>
-          MyNews<span style={{ color: "var(--accent)" }}>.</span>
-        </h1>
-        <p style={{ color: "var(--text-2)", margin: "0 0 12px" }}>Enter the password to read your briefings.</p>
-        <input className="input" type="password" autoFocus autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Password" />
-        {error && <p className="error-text">{error}</p>}
-        <button className="btn btn-primary" type="submit" disabled={!password || busy}>
-          {busy && <span className="spinner" />} Continue
-        </button>
-      </form>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
-  );
+export default async function LoginPage() {
+  if (await currentUser()) redirect("/");
+  return <AuthPage mode="login" statement="Welcome back." dek="Your weekly briefing is waiting: the ten things that mattered to your work in the past seven days." />;
 }
