@@ -2086,3 +2086,20 @@ dialog.modal[open] {
 .account-menu button:hover {
   background: var(--wash);
 }
+
+/* Admin: environment variable names are long */
+.kv.keys {
+  grid-template-columns: minmax(0, 270px) minmax(0, 1fr);
+}
+
+.kv.keys code {
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 680px) {
+  .kv.keys {
+    grid-template-columns: 1fr;
+  }
+}

@@ -27,6 +27,11 @@ export function AccountMenu({ email, isAdmin }: { email: string; isAdmin: boolea
         <Link href="/profile" role="menuitem" onClick={() => ref.current?.removeAttribute("open")}>
           Profile &amp; settings
         </Link>
+        {isAdmin && (
+          <Link href="/admin" role="menuitem" onClick={() => ref.current?.removeAttribute("open")}>
+            Admin
+          </Link>
+        )}
         <button type="button" role="menuitem" onClick={signOut} disabled={busy}>
           {busy ? "Signing out…" : "Sign out"}
         </button>

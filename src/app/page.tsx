@@ -1,28 +1,21 @@
 import Link from "next/link";
-import { profileForUser } from "@/lib/accounts";
-import { EditionReader } from "@/components/classic/EditionReader";
 import { GenerateButton } from "@/components/GenerateButton";
-import { configurationAdvisories, configurationProblems } from "@/lib/config";
-import { databaseProblem } from "@/lib/pipeline/runner";
+import { plain } from "@/components/Prose";
+import { configurationAdvisories } from "@/lib/config";
+import { loadDashboard } from "@/lib/dashboard";
+import { categoryLabel } from "@/lib/render/format";
 import { currentUser } from "@/lib/session";
-import { getStore } from "@/lib/store";
-import type { AuthUser } from "@/lib/auth";
-import { STAGES } from "@/lib/types";
+import { CATEGORY_META, STAGES, type Category } from "@/lib/types";
+import { formatRange } from "@/lib/util/dates";
 import "./classic.css";
 
 export const dynamic = "force-dynamic";
 
-// The home page keeps the classic card-based design (see classic.css); the rest of the site is editorial.
+// The home page is the only page in the classic Apple News–style design (see classic.css). Briefings themselves
+// (Today, the archive, every story) use the editorial design, so everything here links into those pages.
 
-async function loadDashboard(user: AuthUser) {
-  const store = getStore();
-  const profile = await profileForUser(user, store);
-  const [edition, runs] = await Promise.all([store.getLatestEdition(profile.id), store.listRuns(profile.id, 5)]);
-  const unfinished =
-    runs.find((r) => r.status !== "completed" && Date.now() - new Date(r.updatedAt).getTime() < 24 * 3600e3 && (!edition || r.createdAt > edition.createdAt)) ?? null;
-  const feedback = edition ? Object.fromEntries((await store.feedbackForEdition(edition.id)).map((f) => [f.itemId, f.signal])) : {};
-  return { profile, edition, unfinished, feedback };
-}
+const tone = (c: Category | undefined) => `cl-tone-${(c && CATEGORY_META[c]?.tone) || "gray"}`;
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const STEPS = [
   ["1", "Tell it who you are", "Add your homepage, Google Scholar, lab or company pages. An interest profile is built from them."],
@@ -82,17 +75,8 @@ export default async function Home() {
     );
   }
 
-  const problems = configurationProblems().filter((p) => p.key !== "SUPABASE_AUTH");
-  let data: Awaited<ReturnType<typeof loadDashboard>> | null = null;
-  if (!problems.some((p) => p.key === "SUPABASE")) {
-    try {
-      data = await loadDashboard(user);
-    } catch (e) {
-      problems.push(databaseProblem(e));
-    }
-  }
+  const { problems, data } = await loadDashboard(user);
   const unfinished = data?.unfinished;
-
   const notices = (problems.length > 0 || unfinished) && (
     <div className="cl-notices">
       {problems.map((p) => (
@@ -125,46 +109,131 @@ export default async function Home() {
     </div>
   );
 
-  if (data?.edition) {
+  const edition = data?.edition;
+  if (!edition) {
+    const hasSources = Boolean(data?.profile.sources.length);
+    const advisories = user.isAdmin ? configurationAdvisories() : [];
     return (
       <div className="wrap classic">
         {notices}
-        <EditionReader edition={data.edition} initialFeedback={data.feedback} />
+        <Hero
+          actions={
+            <>
+              {hasSources ? (
+                <GenerateButton size="lg" variant="classic" />
+              ) : (
+                <Link href="/profile" className="cl-btn cl-btn-primary cl-btn-lg">
+                  Add your reference sources
+                </Link>
+              )}
+              <Link href="/profile" className="cl-btn cl-btn-secondary cl-btn-lg">
+                {hasSources ? "Review profile" : "How it works"}
+              </Link>
+            </>
+          }
+        />
+        {advisories.length > 0 && (
+          <div className="cl-notices" style={{ marginBottom: 80 }}>
+            {advisories.map((a) => (
+              <div className="cl-notice cl-warn" key={a}>
+                <span className="cl-dot" />
+                <div>{a}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  const hasSources = Boolean(data?.profile.sources.length);
-  const advisories = user.isAdmin ? configurationAdvisories() : [];
+  const stories = `/editions/${edition.id}/stories`;
   return (
     <div className="wrap classic">
       {notices}
-      <Hero
-        actions={
-          <>
-            {hasSources ? (
-              <GenerateButton size="lg" variant="classic" />
-            ) : (
-              <Link href="/profile" className="cl-btn cl-btn-primary cl-btn-lg">
-                Add your reference sources
-              </Link>
-            )}
-            <Link href="/profile" className="cl-btn cl-btn-secondary cl-btn-lg">
-              {hasSources ? "Review profile" : "How it works"}
-            </Link>
-          </>
-        }
-      />
-      {advisories.length > 0 && (
-        <div className="cl-notices" style={{ marginBottom: 80 }}>
-          {advisories.map((a) => (
-            <div className="cl-notice cl-warn" key={a}>
-              <span className="cl-dot" />
-              <div>{a}</div>
-            </div>
-          ))}
+      <section className="cl-cover">
+        <div className="cl-kicker cl-reveal">
+          <span>Your weekly briefing · No. {edition.number}</span>
+          <span className="cl-muted">{formatRange(edition.windowStart, edition.windowEnd)}</span>
+          {edition.sample && <span className="cl-sample-badge">Sample data</span>}
         </div>
+        <h1 className="cl-reveal" style={{ "--i": 1 } as React.CSSProperties}>
+          {edition.headline}
+        </h1>
+        {edition.dek && (
+          <p className="cl-dek cl-reveal" style={{ "--i": 2 } as React.CSSProperties}>
+            {plain(edition.dek).replace(/\s*\[\d+\]/g, "")}
+          </p>
+        )}
+        {edition.themes.length > 0 && (
+          <div className="cl-chips cl-reveal" style={{ "--i": 3 } as React.CSSProperties}>
+            {edition.themes.map((t) => (
+              <span className="cl-chip" key={t}>
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="cl-actions cl-reveal" style={{ "--i": 4 } as React.CSSProperties}>
+          <Link href="/today" className="cl-btn cl-btn-primary cl-btn-lg">
+            Read this week&apos;s briefing <span className="cl-arrow">→</span>
+          </Link>
+          <GenerateButton size="lg" variant="classic-secondary" />
+        </div>
+      </section>
+
+      <div className="cl-section-head">
+        <h2>In this edition</h2>
+        <p>
+          {edition.items.length} stories, ranked for you · {edition.stats.candidates.toLocaleString()} results scanned
+        </p>
+      </div>
+      <nav className="cl-contents cl-reveal" aria-label="Stories in this edition">
+        <ol>
+          {edition.items.map((it) => (
+            <li key={it.id} className={tone(it.category)}>
+              <Link href={`${stories}/${it.rank}`}>
+                <span>
+                  <small>{categoryLabel(it.category)}</small>
+                  <span className="cl-t">{it.title}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      {data.earlier.length > 0 && (
+        <>
+          <div className="cl-section-head">
+            <h2>Earlier editions</h2>
+            <p>
+              <Link href="/editions" style={{ color: "var(--accent)", fontWeight: 600 }}>
+                All editions →
+              </Link>
+            </p>
+          </div>
+          <div className="cl-story-grid">
+            {data.earlier.map((e, i) => (
+              <Link key={e.id} href={`/editions/${e.id}`} className={`cl-card cl-typo cl-reveal ${tone(e.topCategories[0])}`} style={{ "--i": i } as React.CSSProperties}>
+                <div className="cl-media" aria-hidden>
+                  <span className="cl-big">{pad(e.number)}</span>
+                </div>
+                <div className="cl-body">
+                  <div className="cl-eyebrow">
+                    <span>{formatRange(e.windowStart, e.windowEnd)}</span>
+                  </div>
+                  <h3>{e.headline}</h3>
+                  <div className="cl-foot">
+                    <span>{e.itemCount} stories</span>
+                    {e.topCategories.length > 0 && <span>· {e.topCategories.slice(0, 3).map((c) => CATEGORY_META[c]?.short ?? c).join(" / ")}</span>}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </>
       )}
+      <div style={{ height: 24 }} />
     </div>
   );
 }

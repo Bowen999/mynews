@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { CATEGORIES, CATEGORY_META, type Category, type Profile, type SystemStatus } from "@/lib/types";
+import { CATEGORIES, CATEGORY_META, type Category, type Profile } from "@/lib/types";
 
 export interface UsageInfo {
   used: number;
@@ -122,13 +122,11 @@ function PasswordChange() {
 
 export function ProfileEditor({
   initial,
-  status,
   usage,
   account,
   reading,
 }: {
   initial: Profile;
-  status: SystemStatus | null;
   usage: UsageInfo;
   account: AccountInfo;
   reading: ReadingInfo;
@@ -463,42 +461,20 @@ export function ProfileEditor({
             {account.email}
             {account.isAdmin ? " · admin" : ""}
           </dd>
+          {account.isAdmin && (
+            <>
+              <dt>Admin</dt>
+              <dd>
+                <a className="link" href="/admin">
+                  System status, keys and usage
+                </a>
+              </dd>
+            </>
+          )}
         </dl>
         <PasswordChange />
       </Section>
 
-      {status && (
-        <Section title="System" hint="Visible to admins only.">
-          <dl className="kv">
-            <dt>Language model</dt>
-            <dd>{status.llm}</dd>
-            <dt>Web search</dt>
-            <dd>{status.search.length ? status.search.join(", ") : "Free RSS fallback only"}</dd>
-            <dt>Scholarly</dt>
-            <dd>{status.scholarly.join(", ")}</dd>
-            <dt>Embeddings</dt>
-            <dd>{status.embeddings}</dd>
-            <dt>Storage</dt>
-            <dd>{status.storage === "supabase" ? "Supabase" : "Local files (development)"}</dd>
-            <dt>Owner notifications</dt>
-            <dd>{status.ntfyTopic}</dd>
-          </dl>
-          {(status.problems.length > 0 || status.advisories.length > 0) && (
-            <div className="notices" style={{ marginTop: 0 }}>
-              {status.problems.map((p) => (
-                <div className="notice error" key={p.key}>
-                  <strong>{p.message}</strong> {p.action}
-                </div>
-              ))}
-              {status.advisories.map((a) => (
-                <div className="notice warn" key={a}>
-                  {a}
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
     </>
   );
 }

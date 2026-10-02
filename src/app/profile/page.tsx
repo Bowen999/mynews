@@ -4,7 +4,6 @@ import { ProfileEditor } from "@/components/ProfileEditor";
 import { hasSupabaseAuth } from "@/lib/config";
 import { checkQuota } from "@/lib/quota";
 import { requirePageUser } from "@/lib/session";
-import { systemStatus } from "@/lib/status";
 import { readingSummary } from "@/lib/pipeline/semantic";
 import { getStore } from "@/lib/store";
 
@@ -27,7 +26,6 @@ export default async function ProfilePage() {
       </header>
       <ProfileEditor
         initial={profile}
-        status={user.isAdmin ? systemStatus() : null}
         usage={{ used: quota.used, limit: quota.limit, nextSlotAt: quota.nextSlotAt }}
         account={{ email: user.email, isAdmin: user.isAdmin, authKind: hasSupabaseAuth() ? "supabase" : "local" }}
         reading={reading}

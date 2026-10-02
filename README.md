@@ -117,7 +117,8 @@ It never waits silently: input problems are reported both in the UI and through 
    plus `JINA_API_KEY` (recommended).
    Optionally restrict who can join with `AUTH_ALLOWED_EMAILS` / `AUTH_ALLOWED_DOMAINS`, or close sign-up with `SIGNUPS_DISABLED=1`.
    Deploy.
-6. Open the site, create your account with the email listed in `ADMIN_EMAILS`, add your reference URLs on **Profile**,
+6. Open the site, create your account with the email listed in `ADMIN_EMAILS` (it then has an **Admin** page under the
+   account menu that shows which keys the deployment can see), add your reference URLs on **Profile**,
    and press **Generate Weekly Briefing**. If you used the earlier single-user version, the first admin to sign in
    takes over its profile and editions.
 
@@ -164,7 +165,7 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 | `GOOGLE_SCHOLAR_DISABLED` | `1` skips Google Scholar searches (read through Jina Reader; may hit captchas). |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Storage; required on Vercel. |
 | `SUPABASE_ANON_KEY` | Sign-in (Supabase Auth, server-side only); required on Vercel. `SUPABASE_PUBLISHABLE_KEY` also works. |
-| `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, system status, owner notifications. |
+| `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, the **Admin** page (account menu → Admin, `/admin`: problems, which keys the deployment can see, services, usage), owner notifications. |
 | `AUTH_ALLOWED_EMAILS`, `AUTH_ALLOWED_DOMAINS` | Optional allow-list (e.g. `ualberta.ca`). Empty means anyone may sign up. |
 | `SIGNUPS_DISABLED` | `1` closes sign-up to everyone except admins. |
 | `USER_WEEKLY_RUN_LIMIT` | Generations per user per rolling 7 days (default 3; `0` = unlimited). |
@@ -187,8 +188,9 @@ src/lib/store/        Supabase store and local file store behind one interface
 src/lib/auth/         Supabase Auth (server-side cookies) and local dev accounts behind one interface; allow-list policy
 src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.ts usage limits
 src/lib/render/       standalone HTML edition renderer
-src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms;
-                      classic/ holds the card-based home page (edition reader + story sheet)
+src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms
+src/app/page.tsx      the home page (classic card design, src/app/classic.css); /today shows the latest edition
+src/app/admin/        admin page: problems, which keys the deployment sees, services, usage
 supabase/migrations/  database schema
 tests/                vitest suites (parsers, verification, ranking, providers, end-to-end mock pipeline)
 ```
@@ -204,6 +206,9 @@ To add a search source, implement `SearchProvider` and add it to the routing in 
     Scholar and Europe PMC still cover papers.
   - Add a homepage alongside your Scholar profile.
   - If the automatic match is wrong, set your Semantic Scholar author ID on the Profile page.
+- **"Key is missing" after you added it:** Vercel only passes variables to deployments created after you saved them, and
+  only for the environments you ticked (Production / Preview). Redeploy (Deployments → ⋯ → Redeploy). The **Admin** page
+  lists which keys the running deployment can see, by name only.
 - **WeChat and patents** are found through domain-restricted web search (`mp.weixin.qq.com`, Google Patents, WIPO…),
   so they need a search API key.
 - **Undated pages** found by a past-week search filter are allowed but penalized, and labeled "date unverified".

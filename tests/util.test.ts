@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { extractJson } from "../src/lib/llm/json";
 import { inWindow, parseDate, previousWeekWindow } from "../src/lib/util/dates";
 import { titleSimilarity, tokenize } from "../src/lib/util/text";
@@ -84,5 +84,43 @@ describe("Supabase configuration", () => {
     expect(describeSupabaseError("getProfile", { message: "Could not find the table 'public.profiles'", code: "PGRST205" })).toMatch(/supabase\/migrations/);
     expect(describeSupabaseError("getProfile", { message: "permission denied for table profiles", code: "42501" })).toMatch(/service_role/);
     expect(describeSupabaseError("x", { message: "a".repeat(1000) }).length).toBeLessThan(330);
+  });
+});
+
+describe("DeepSeek key detection", () => {
+  const KEYS = ["MOCK_MODE", "DEEPSEEK_API_KEY", "DEEPSEEK_KEY", "deepseek_api_key", "NEXT_PUBLIC_DEEPSEEK_API_KEY", "VERCEL", "VERCEL_ENV", "LLM_PROVIDER"];
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+  const clear = () => KEYS.forEach((k) => delete process.env[k]);
+
+  it("accepts common variants of the name and strips pasted quotes", async () => {
+    const { config, keyDiagnostics } = await import("../src/lib/config");
+    clear();
+    process.env.DEEPSEEK_KEY = '"sk-test-123"';
+    expect(config.llm.deepseek.apiKey).toBe("sk-test-123");
+    expect(keyDiagnostics()[0]).toMatchObject({ name: "DEEPSEEK_API_KEY", set: true, note: "read from DEEPSEEK_KEY" });
+    clear();
+    process.env.deepseek_api_key = "Bearer sk-lower";
+    expect(config.llm.deepseek.apiKey).toBe("sk-lower");
+  });
+
+  it("explains a missing key: environment, redeploy and similarly named variables, never values", async () => {
+    const { configurationProblems, keyDiagnostics } = await import("../src/lib/config");
+    clear();
+    process.env.VERCEL = "1";
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY = "sk-secret-value";
+    const p = configurationProblems().find((x) => x.key === "DEEPSEEK_API_KEY")!;
+    expect(p.action).toMatch(/Production environment/);
+    expect(p.action).toMatch(/Redeploy/);
+    expect(p.action).toMatch(/Found NEXT_PUBLIC_DEEPSEEK_API_KEY; rename it to DEEPSEEK_API_KEY/);
+    expect(JSON.stringify(configurationProblems())).not.toContain("sk-secret-value");
+    expect(JSON.stringify(keyDiagnostics())).not.toContain("sk-secret-value");
+    expect(keyDiagnostics()[0]).toMatchObject({ set: false, required: true });
   });
 });

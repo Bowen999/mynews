@@ -103,14 +103,21 @@ Task:
    - novelty: 0-10, how new this is (repeats of covered stories score low)
    - credibility: 0-10, reliability of the sources shown
    - value: 0-10, practical value to this reader (could they act on it, cite it, apply, attend, contact?)
-   - rationale: one sentence explaining the scores, referring to the reader's interests
+   - rationale: one short, plain sentence saying why this matters to this reader (name the topic or person it connects to; no jargon, no filler)
 Signals: "cites-your-work" = the paper cites the reader's publications; "coauthor" = written by a frequent co-author; "your-work" = the reader's own new publication; "watchlist" = from a name or feed the reader asked to follow. These are usually high value. "recommended" = suggested by Semantic Scholar from the reader's papers and likes.
 Match: semantic similarity (0-1) between the item and the reader's profile, computed from embeddings ("-" if unavailable). Use it as a hint, not a verdict.
 
 Return JSON: {"clusters":[{"ids":["c1","c7"],"category":"news","label":"","relevance":0,"impact":0,"novelty":0,"credibility":0,"value":0,"rationale":""}]}`;
 }
 
-export const SYNTH_SYSTEM = `You are the editor of a premium, personalized intelligence briefing (think Apple News quality, analyst rigor).
+export const SYNTH_SYSTEM = `You write one item of a personal weekly briefing for a busy expert. Write the way a sharp colleague explains news in person: plain, direct and easy to follow on first read.
+Writing style:
+- Lead with the point. The first sentence says what happened, who did it and the key result or number.
+- Short sentences (aim for under 20 words), everyday words, active voice. One idea per sentence.
+- Explain any acronym or specialist term in a few words the first time, unless it is basic in the reader's own field.
+- Be concrete: names, numbers, dates, what changes. No hype or filler ("groundbreaking", "game-changer", "landscape", "paves the way", "it is worth noting", "in today's fast-paced world").
+- Say how sure the evidence is in plain words ("a preprint, not yet peer reviewed", "one company statement") instead of stacking hedges.
+- In Chinese: 用通俗、直接的中文，短句，先说结论，避免翻译腔、套话和堆砌术语。
 Non-negotiable rules:
 - Every factual statement must be supported by the numbered sources provided and must carry citation markers like [S1] or [S1][S3].
 - Never invent facts, numbers, names, dates, quotes, links or sources. If the sources are thin, write less.
@@ -142,19 +149,19 @@ ${input.sources}
 
 Return JSON:
 {
-  "title": "clear factual headline, max 90 characters, no clickbait, no citation markers",
+  "title": "plain headline saying what happened (who + did what), max 90 characters, no wordplay, no clickbait, no citation markers",
   "category": "${input.category}",
-  "summary": "2-3 sentences on what happened, with citation markers",
-  "whyItMatters": "1-2 sentences tailored to this reader's work, with citation markers for any facts",
-  "keyFacts": [ { "text": "one verifiable fact, no markers inside", "sources": ["S1"] } ],
-  "analysis": [ { "heading": "short heading", "body": "a paragraph of deeper analysis with citation markers" } ],
-  "relevanceExplanation": "1-2 sentences on why this ranks in the reader's top 10 (relevance, impact, novelty, credibility, value)",
+  "summary": "2-3 short sentences: what happened, who did it, the key result or number; with citation markers",
+  "whyItMatters": "1-2 short sentences on what this means for this reader's work or what they could do (read, cite, apply, contact, attend). Start with the consequence, not 'This is relevant because'. Citation markers for any facts",
+  "keyFacts": [ { "text": "one short, verifiable fact in plain words, no markers inside", "sources": ["S1"] } ],
+  "analysis": [ { "heading": "the takeaway in a few plain words", "body": "a short paragraph (2-4 sentences): what it means, how solid the evidence is, what to watch next; with citation markers" } ],
+  "relevanceExplanation": "one plain sentence on why this made the reader's top 10",
   "confidence": "high | medium | low (how well the sources support the story)"
 }
-Constraints: 3-5 keyFacts; 2-4 analysis paragraphs; only use source ids that exist above.`;
+Constraints: 3-5 keyFacts; 2-3 analysis paragraphs; only use source ids that exist above.`;
 }
 
-export const EDITION_SYSTEM = `You write the cover of a personalized weekly intelligence briefing. You summarize ONLY the items provided; you add no new facts. Reply with a single JSON object and nothing else.`;
+export const EDITION_SYSTEM = `You write the cover of a personal weekly briefing. Use plain, direct language: short sentences, everyday words, the most important development first, no hype or wordplay (in Chinese: 通俗、直接、先说结论). You summarize ONLY the items provided; you add no new facts. Reply with a single JSON object and nothing else.`;
 
 export function editionPrompt(input: { outputLanguage: Lang; windowLabel: string; items: string }): string {
   const lang = input.outputLanguage === "zh" ? "Simplified Chinese" : "English";
@@ -165,8 +172,8 @@ ${input.items}
 
 Return JSON:
 {
-  "headline": "an editorial headline for the week, max 70 characters, grounded in the items",
-  "dek": "2-3 sentence overview referencing items by number in brackets like [1] [4]; no facts beyond the items",
+  "headline": "the week's most important development in plain words, max 70 characters, grounded in the items",
+  "dek": "2-3 short, direct sentences on what happened this week and what it means for the reader, referencing items by number in brackets like [1] [4]; no facts beyond the items",
   "themes": ["2-5 short theme labels"]
 }`;
 }

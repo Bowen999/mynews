@@ -5,6 +5,35 @@ function env(name: string): string | undefined {
   return v && v.trim() ? v.trim() : undefined;
 }
 
+/** "deepseek-api_key" → "DEEPSEEKAPIKEY", for matching variable names that differ only in case or separators. */
+function looseName(name: string): string {
+  return name.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Remove quotes or a "Bearer " prefix pasted along with a secret. */
+function cleanSecret(v: string): string {
+  return v
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+}
+
+/** The first of `names` that is set; otherwise any variable whose name matches one of them loosely. */
+function secretEnv(names: string[]): { value: string; from: string } | undefined {
+  for (const n of names) {
+    const v = env(n);
+    if (v && cleanSecret(v)) return { value: cleanSecret(v), from: n };
+  }
+  const wanted = new Set(names.map(looseName));
+  for (const [k, v] of Object.entries(process.env)) {
+    if (wanted.has(looseName(k)) && v && cleanSecret(v)) return { value: cleanSecret(v), from: k };
+  }
+  return undefined;
+}
+
+const DEEPSEEK_KEY_NAMES = ["DEEPSEEK_API_KEY", "DEEPSEEK_KEY", "DEEPSEEK_APIKEY"];
+
 function list(v: string | undefined): string[] {
   return (v ?? "")
     .split(/[,\s]+/)
@@ -27,7 +56,11 @@ export const config = {
     },
     deepseek: {
       get apiKey() {
-        return env("DEEPSEEK_API_KEY");
+        return secretEnv(DEEPSEEK_KEY_NAMES)?.value;
+      },
+      /** Which variable the key was read from (for diagnostics; never the value). */
+      get apiKeySource() {
+        return secretEnv(DEEPSEEK_KEY_NAMES)?.from;
       },
       get baseUrl() {
         return env("DEEPSEEK_BASE_URL") ?? "https://api.deepseek.com";
@@ -183,15 +216,71 @@ export function webSearchProviders(): string[] {
   return list;
 }
 
+/** "Production", "Preview" or "Development" on Vercel; "local" elsewhere. */
+export function deploymentEnvironment(): string {
+  const v = env("VERCEL_ENV");
+  return v ? v[0].toUpperCase() + v.slice(1) : "local";
+}
+
+/** Names (never values) of set environment variables matching a pattern. */
+export function similarEnvNames(pattern: RegExp): string[] {
+  return Object.keys(process.env)
+    .filter((k) => pattern.test(k) && process.env[k]?.trim())
+    .sort();
+}
+
+export interface KeyStatus {
+  name: string;
+  purpose: string;
+  set: boolean;
+  required: boolean;
+  /** Where the value was read from when it isn't the canonical name. */
+  note?: string;
+}
+
+/** Which keys this deployment can see. Reports presence only, never values. */
+export function keyDiagnostics(): KeyStatus[] {
+  const has = (n: string) => Boolean(env(n));
+  const ds = config.llm.deepseek.apiKeySource;
+  return [
+    {
+      name: "DEEPSEEK_API_KEY",
+      purpose: "Language model",
+      set: Boolean(ds),
+      required: config.llm.provider === "deepseek" && !config.mockMode,
+      note: ds && ds !== "DEEPSEEK_API_KEY" ? `read from ${ds}` : undefined,
+    },
+    { name: "TAVILY_API_KEY", purpose: "Web search", set: has("TAVILY_API_KEY"), required: false },
+    { name: "EXA_API_KEY", purpose: "Web search", set: has("EXA_API_KEY"), required: false },
+    { name: "SERPER_API_KEY", purpose: "Web search", set: has("SERPER_API_KEY"), required: false },
+    { name: "BRAVE_API_KEY", purpose: "Web search", set: has("BRAVE_API_KEY"), required: false },
+    { name: "JINA_API_KEY", purpose: "Semantic ranking, page reading, Google Scholar", set: has("JINA_API_KEY"), required: false },
+    { name: "SEMANTIC_SCHOLAR_API_KEY", purpose: "Paper search and citations", set: Boolean(config.search.semanticScholarKey), required: false },
+    { name: "SUPABASE_URL", purpose: "Storage and sign-in", set: Boolean(config.store.supabaseUrl), required: config.onVercel },
+    { name: "SUPABASE_SERVICE_ROLE_KEY", purpose: "Storage", set: Boolean(config.store.supabaseKey), required: config.onVercel },
+    { name: "SUPABASE_ANON_KEY", purpose: "Sign-in", set: Boolean(config.auth.supabaseAnonKey), required: config.onVercel },
+    { name: "ADMIN_EMAILS", purpose: "Admin accounts", set: config.auth.adminEmails.length > 0, required: false, note: config.auth.adminEmails.length ? `${config.auth.adminEmails.length} address(es)` : undefined },
+    { name: "APP_BASE_URL", purpose: "Links in emails and notifications", set: has("APP_BASE_URL"), required: false },
+  ];
+}
+
 /** Blocking configuration problems that require the user to act before a run can start. */
 export function configurationProblems(): RequiredInput[] {
   const problems: RequiredInput[] = [];
   if (config.mockMode) return problems;
   if (config.llm.provider === "deepseek" && !config.llm.deepseek.apiKey) {
+    const similar = similarEnvNames(/DEEP.?SEEK/i).filter((n) => !["DEEPSEEK_MODEL", "DEEPSEEK_THINKING", "DEEPSEEK_BASE_URL"].includes(n));
     problems.push({
       key: "DEEPSEEK_API_KEY",
-      message: "DeepSeek API key is missing.",
-      action: "Add DEEPSEEK_API_KEY to the environment (Vercel → Project → Settings → Environment Variables) and redeploy.",
+      message: "This deployment cannot see a DeepSeek API key.",
+      action: [
+        "In Vercel → Project → Settings → Environment Variables, add DEEPSEEK_API_KEY",
+        config.onVercel ? `and tick the ${deploymentEnvironment()} environment.` : "(locally: put it in .env.local).",
+        "Then redeploy (Deployments → ⋯ → Redeploy): a variable only reaches deployments created after it was saved.",
+        similar.length ? `Found ${similar.join(", ")}; rename it to DEEPSEEK_API_KEY.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     });
   }
   if (config.onVercel && !hasSupabase()) {

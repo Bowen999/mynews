@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 /** Best-effort implicit feedback (story opened / source followed); never blocks reading. */
-export function trackInteraction(editionId: string, itemId: string, kind: "open" | "source") {
+function trackInteraction(editionId: string, itemId: string, kind: "open" | "source") {
   try {
     void fetch("/api/interactions", {
       method: "POST",
