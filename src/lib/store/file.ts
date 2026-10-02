@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { Edition, EditionSummary, Feedback, Profile, Run, RunSummary, SourceSnapshot } from "../types";
+import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
 import { shortHash } from "../util/text";
 import { summarizeEdition, summarizeRun, type Store } from "./types";
 
@@ -146,5 +146,21 @@ export class FileStore implements Store {
   }
   async feedbackForEdition(editionId: string) {
     return (await this.allFeedback()).filter((f) => f.editionId === editionId);
+  }
+
+  private async allInteractions(): Promise<Interaction[]> {
+    return (await this.read<Interaction[]>(this.p("interactions.json"))) ?? [];
+  }
+  async addInteraction(i: Interaction) {
+    const all = await this.allInteractions();
+    if (all.some((x) => x.id === i.id)) return;
+    all.push(i);
+    await this.write(this.p("interactions.json"), all.slice(-5000));
+  }
+  async listInteractions(profileId: string, limit: number) {
+    return (await this.allInteractions())
+      .filter((i) => i.profileId === profileId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
   }
 }

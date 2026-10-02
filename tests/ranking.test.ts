@@ -19,7 +19,7 @@ const profile: InterestProfile = {
   ],
   languages: ["en", "zh"],
   exclusions: ["olive oil"],
-  scholar: { openalexAuthorId: "A1", confidence: "high", topWorkIds: ["W1", "W2"], coauthorIds: ["A2"] },
+  scholar: { s2AuthorId: "1", confidence: "high", paperIds: ["p1", "p2"], coauthorIds: ["2"], citesIds: ["999"] },
   updatedAt: "",
   version: 1,
 };
@@ -92,7 +92,7 @@ describe("scoring and selection", () => {
   });
   it("applies transparent adjustments", () => {
     const members = [cand({ id: "a", title: "A", snippet: "s", signals: ["cites-your-work"] }), cand({ id: "b", title: "B", snippet: "s" })];
-    const s = scoreCluster({ ...k("x", "paper", 8), candidateIds: ["a", "b"] }, members, { urls: new Set(), titles: [] })!;
+    const s = scoreCluster({ ...k("x", "paper", 8), candidateIds: ["a", "b"] }, members, { urls: new Set(), titles: [], vectors: [] })!;
     expect(s.adjustments).toEqual(["+3 corroborated by 2 independent sources", "+6 cites your work"]);
     expect(s.total).toBeGreaterThan(70);
   });
@@ -142,14 +142,31 @@ describe("profile normalization and planning", () => {
     expect(p.languages).toContain("zh");
     expect(p.exclusions).toContain("crypto");
   });
-  it("plans provider-routed tasks with domain filters and personal OpenAlex tasks", () => {
-    const tasks = planSearch(profile, defaultPreferences());
+  it("plans provider-routed tasks with domain filters and personal scholarly tasks", () => {
+    const tasks = planSearch(profile, defaultPreferences(), { likedPaperIds: ["liked1"], dislikedPaperIds: ["bad1"] });
     expect(tasks.find((t) => t.category === "wechat")?.includeDomains).toEqual(["mp.weixin.qq.com"]);
     expect(tasks.find((t) => t.category === "patent")?.includeDomains).toContain("patents.google.com");
-    expect(tasks.find((t) => t.signal === "cites-your-work")?.openalexFilter).toBe("cites:W1|W2");
-    expect(tasks.find((t) => t.signal === "coauthor")?.openalexFilter).toBe("author.id:A2");
-    expect(tasks.some((t) => t.kind === "arxiv")).toBe(true);
+    const cites = tasks.filter((t) => t.signal === "cites-your-work");
+    expect(cites.map((t) => t.s2 ?? t.scholarCites)).toEqual(
+      expect.arrayContaining([{ mode: "citations", paperId: "p1" }, { mode: "citations", paperId: "p2" }, "999"]),
+    );
+    expect(tasks.find((t) => t.signal === "coauthor")?.s2).toEqual({ mode: "author", authorId: "2" });
+    expect(tasks.find((t) => t.signal === "your-work")?.s2).toEqual({ mode: "author", authorId: "1" });
+    expect(tasks.find((t) => t.signal === "recommended")?.s2).toEqual({ mode: "recommend", positive: ["p1", "p2", "liked1"], negative: ["bad1"] });
+    for (const kind of ["s2", "europepmc", "arxiv", "scholar"]) expect(tasks.some((t) => t.kind === kind && t.query === "lipidomics")).toBe(true);
     expect(tasks.some((t) => t.query === '"Jane Doe"')).toBe(true);
+  });
+  it("skips identity tasks when the author match is unreliable, but still uses liked papers", () => {
+    const weak = { ...profile, scholar: { ...profile.scholar, confidence: "low" as const } };
+    const tasks = planSearch(weak, defaultPreferences(), { likedPaperIds: ["liked1"], dislikedPaperIds: [] });
+    expect(tasks.some((t) => t.signal === "coauthor" || t.signal === "your-work" || t.s2?.mode === "citations")).toBe(false);
+    expect(tasks.find((t) => t.signal === "recommended")?.s2).toEqual({ mode: "recommend", positive: ["liked1"], negative: [] });
+  });
+  it("adds watchlist names and feeds", () => {
+    const prefs = { ...defaultPreferences(), watchTerms: ["Northwind Biosciences"], watchFeeds: ["https://lab.example.edu/feed.xml"] };
+    const tasks = planSearch(profile, prefs);
+    expect(tasks.find((t) => t.query === '"Northwind Biosciences"')).toMatchObject({ kind: "news", signal: "watchlist" });
+    expect(tasks.find((t) => t.kind === "feed")).toMatchObject({ feedUrl: "https://lab.example.edu/feed.xml", signal: "watchlist" });
   });
   it("respects disabled categories", () => {
     const prefs = defaultPreferences();

@@ -3,7 +3,7 @@
  * All people, organizations and URLs are invented and use reserved example.* domains.
  * Never used when MOCK_MODE is off.
  */
-import type { Category } from "../types";
+import type { Category, SourceSnapshot } from "../types";
 
 export interface MockDoc {
   category: Category;
@@ -45,6 +45,7 @@ export const MOCK_CORPUS: MockDoc[] = [
     daysAgo: 4,
     authors: ["J. Park", "M. Laurent"],
     venue: "Preprint",
+    signals: ["recommended"],
     content:
       "A transformer trained on 2.1 million annotated tandem mass spectra achieves 94% top-1 accuracy for lipid class and 81% for exact species on a held-out benchmark. The authors compare against rule-based tools and report the largest gains for oxidized lipids. Code and weights are available under an open license. The preprint has not yet been peer reviewed.",
   },
@@ -148,6 +149,14 @@ export const MOCK_CORPUS: MockDoc[] = [
   },
 ];
 
-export function mockSourceDocument(url: string): { title: string; text: string } {
-  return { title: `Sample source for ${url}`, text: MOCK_PERSON_DOC };
+export function mockSourceDocument(url: string): { title: string; text: string; hints: SourceSnapshot["hints"] } {
+  const papers = [
+    { title: "Single-cell lipid profiling with trapped ion mobility", citesId: "1001", citedBy: 42, year: 2024 },
+    { title: "Deep learning annotation of lipid MS/MS spectra", citesId: "1002", citedBy: 17, year: 2023 },
+  ];
+  return {
+    title: `Sample source for ${url}`,
+    text: MOCK_PERSON_DOC,
+    hints: { paperTitles: papers.map((p) => p.title), scholarPapers: papers, scholarUserId: "mockUser01" },
+  };
 }

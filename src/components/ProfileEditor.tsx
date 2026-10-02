@@ -10,6 +10,15 @@ export interface UsageInfo {
   nextSlotAt?: string;
 }
 
+export interface ReadingInfo {
+  opened: number;
+  sources: number;
+  likes: number;
+  dislikes: number;
+  /** Learned category affinity, strongest first (−1..1). */
+  affinity: { category: Category; value: number }[];
+}
+
 export interface AccountInfo {
   email: string;
   isAdmin: boolean;
@@ -116,11 +125,13 @@ export function ProfileEditor({
   status,
   usage,
   account,
+  reading,
 }: {
   initial: Profile;
   status: SystemStatus | null;
   usage: UsageInfo;
   account: AccountInfo;
+  reading: ReadingInfo;
 }) {
   const router = useRouter();
   const [profile, setProfile] = useState(initial);
@@ -162,7 +173,7 @@ export function ProfileEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sources: profile.sources.map((s) => ({ id: s.id.startsWith("new-") ? undefined : s.id, url: s.url, label: s.label })),
-          preferences: { ...prefs, openalexAuthorId: prefs.openalexAuthorId ?? "", ntfyTopic: prefs.ntfyTopic ?? "" },
+          preferences: { ...prefs, semanticScholarAuthorId: prefs.semanticScholarAuthorId ?? "", ntfyTopic: prefs.ntfyTopic ?? "" },
         }),
       });
       const data = await res.json();
@@ -283,15 +294,37 @@ export function ProfileEditor({
           />
         </label>
         <label className="field">
-          <span>OpenAlex author ID</span>
+          <span>Semantic Scholar author ID</span>
           <input
             className="input"
-            value={prefs.openalexAuthorId ?? ""}
-            onChange={(e) => setPrefs({ openalexAuthorId: e.target.value || undefined })}
-            placeholder="A5023888391"
+            value={prefs.semanticScholarAuthorId ?? ""}
+            onChange={(e) => setPrefs({ semanticScholarAuthorId: e.target.value || undefined })}
+            placeholder="1741101 or https://www.semanticscholar.org/author/…"
           />
-          <small>Optional. Makes “papers citing your work” exact; find yours at openalex.org.</small>
+          <small>
+            Optional. Usually found automatically from your Google Scholar profile or homepage; set it if the match below is wrong. It powers
+            “papers citing your work”, co-author tracking and paper recommendations.
+          </small>
         </label>
+      </Section>
+
+      <Section
+        title="Watchlist"
+        hint="Exact names and feeds to follow every week. Matches get a ranking bonus and are searched directly."
+      >
+        <div className="field">
+          <span>Names to watch</span>
+          <TagInput value={prefs.watchTerms ?? []} onChange={(v) => setPrefs({ watchTerms: v })} placeholder="e.g. Daniel Okafor, Northwind Biosciences, ERC Starting Grant" />
+        </div>
+        <div className="field">
+          <span>Feeds</span>
+          <TagInput
+            value={prefs.watchFeeds ?? []}
+            onChange={(v) => setPrefs({ watchFeeds: v.slice(0, 10) })}
+            placeholder="RSS or Atom URL: lab news, a journal’s table of contents, a blog"
+          />
+          <small>Up to 10. Only entries from the past 7 days are used.</small>
+        </div>
       </Section>
 
       <Section title="Notifications" hint="Get a push notification when a briefing starts, needs your input, finishes or fails. Install the free ntfy app and subscribe to your topic.">
@@ -350,10 +383,25 @@ export function ProfileEditor({
               )}
               <dt>Scholarly record</dt>
               <dd>
-                {interest.scholar?.openalexAuthorId
-                  ? `${interest.scholar.displayName} (${interest.scholar.openalexAuthorId}, ${interest.scholar.confidence} confidence)`
-                  : "Not matched"}
+                {interest.scholar?.s2AuthorId ? (
+                  <>
+                    <a href={`https://www.semanticscholar.org/author/${interest.scholar.s2AuthorId}`} target="_blank" rel="noopener noreferrer">
+                      {interest.scholar.displayName ?? interest.scholar.s2AuthorId}
+                    </a>{" "}
+                    on Semantic Scholar ({interest.scholar.confidence} confidence, {interest.scholar.paperIds?.length ?? 0} papers tracked
+                    {interest.scholar.coauthorNames?.length ? `, co-authors ${interest.scholar.coauthorNames.slice(0, 4).join(", ")}` : ""})
+                  </>
+                ) : (
+                  "Not matched on Semantic Scholar"
+                )}
+                {interest.scholar?.citesIds?.length ? ` · new Google Scholar citations of ${interest.scholar.citesIds.length} papers are tracked` : ""}
                 {interest.scholar?.note ? ` — ${interest.scholar.note}` : ""}
+              </dd>
+              <dt>Semantic profile</dt>
+              <dd>
+                {interest.prototypes?.items.length
+                  ? `${interest.prototypes.items.length} embedded reference points (${interest.prototypes.items.filter((p) => p.kind === "work").length} of your papers)`
+                  : "Not embedded (keyword matching)"}
               </dd>
               <dt>Search queries</dt>
               <dd>
@@ -375,6 +423,25 @@ export function ProfileEditor({
         ) : (
           <p className="body muted">Your interest profile is built from your sources the first time you generate a briefing.</p>
         )}
+      </Section>
+
+      <Section title="Reading" hint="What you open and rate teaches the ranking. Nothing is shared with other accounts.">
+        <dl className="kv">
+          <dt>Last 90 days</dt>
+          <dd>
+            {reading.opened} {reading.opened === 1 ? "story" : "stories"} opened · {reading.sources} source {reading.sources === 1 ? "link" : "links"} followed ·{" "}
+            {reading.likes} more / {reading.dislikes} less like this
+          </dd>
+          <dt>Learned preferences</dt>
+          <dd>
+            {reading.affinity.length
+              ? reading.affinity
+                  .slice(0, 6)
+                  .map((a) => `${CATEGORY_META[a.category].label} ${a.value > 0 ? "+" : "−"}${Math.abs(Math.round(a.value * 8))}`)
+                  .join(" · ")
+              : "Not enough reading yet"}
+          </dd>
+        </dl>
       </Section>
 
       <Section title="Usage" hint="Generations use shared search and language-model credits, so each account has a weekly allowance.">
@@ -409,6 +476,8 @@ export function ProfileEditor({
             <dd>{status.search.length ? status.search.join(", ") : "Free RSS fallback only"}</dd>
             <dt>Scholarly</dt>
             <dd>{status.scholarly.join(", ")}</dd>
+            <dt>Embeddings</dt>
+            <dd>{status.embeddings}</dd>
             <dt>Storage</dt>
             <dd>{status.storage === "supabase" ? "Supabase" : "Local files (development)"}</dd>
             <dt>Owner notifications</dt>

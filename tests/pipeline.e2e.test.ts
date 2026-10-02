@@ -85,9 +85,18 @@ describe("pipeline (mock mode)", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain(edition.items[0].title.replace(/&/g, "&amp;"));
 
-    // Profile was built and persisted.
+    // Profile was built and persisted, with a scholarly identity and embedded prototypes.
     const saved = await profileForUser(alice, store);
     expect(saved.interest?.topics.length).toBeGreaterThan(0);
+    expect(saved.interest?.scholar).toMatchObject({ s2AuthorId: "mock-author", citesIds: ["1001", "1002"] });
+    expect(saved.interest?.prototypes?.items.some((p) => p.kind === "work")).toBe(true);
+
+    // Candidates were ranked semantically; each story carries its embedding for novelty and feedback learning.
+    expect(run.state.semantic).toBe(true);
+    expect(run.log.some((l) => /Ranked semantically/.test(l.message))).toBe(true);
+    expect(edition.items.every((i) => typeof i.embedding === "string" && i.embedding.length > 100)).toBe(true);
+    expect(edition.items.some((i) => i.relevance.adjustments.some((a) => a.startsWith("Closest to")))).toBe(true);
+    expect(edition.items.find((i) => i.sources.some((s) => s.paperId))).toBeDefined();
   });
 
   it("does not repeat stories already covered in the previous edition", async () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cosine, decodeVector, getEmbedder } from "../embed";
 import { completeJSON } from "../llm/json";
 import { CATEGORIES, isCategory, type Candidate, type Category, type Cluster } from "../types";
 import { formatRange, isoDay } from "../util/dates";
@@ -25,13 +26,25 @@ export const ClusterSchema = z.object({
   ),
 });
 
-/** Union-find grouping of near-duplicate titles (same story from several outlets). */
-export function pregroup(candidates: Candidate[], threshold = 0.55): string[][] {
+/** At most this many candidates are sent to the model for clustering and rating; the rest can still join a story. */
+export const LLM_CANDIDATES = 50;
+
+/** Same story if the headlines nearly match or (with embeddings) the texts are near-identical in meaning. */
+function sameStory(a: Candidate, b: Candidate, threshold: number, semanticThreshold?: number): boolean {
+  if (titleSimilarity(a.title, b.title) >= threshold) return true;
+  if (semanticThreshold === undefined) return false;
+  const va = decodeVector(a.embedding);
+  const vb = decodeVector(b.embedding);
+  return Boolean(va && vb && cosine(va, vb) >= semanticThreshold);
+}
+
+/** Union-find grouping of near-duplicates (same story from several outlets). */
+export function pregroup(candidates: Candidate[], threshold = 0.55, semanticThreshold?: number): string[][] {
   const parent = candidates.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   for (let i = 0; i < candidates.length; i++)
     for (let j = i + 1; j < candidates.length; j++) {
-      if (titleSimilarity(candidates[i].title, candidates[j].title) >= threshold) parent[find(j)] = find(i);
+      if (sameStory(candidates[i], candidates[j], threshold, semanticThreshold)) parent[find(j)] = find(i);
     }
   const groups = new Map<number, string[]>();
   candidates.forEach((c, i) => {
@@ -52,12 +65,13 @@ function majorityCategory(members: Candidate[]): Category {
 }
 
 /** Deterministic fallback if the LLM clustering call fails. */
-export function heuristicClusters(candidates: Candidate[]): Cluster[] {
+export function heuristicClusters(candidates: Candidate[], semanticThreshold?: number): Cluster[] {
   const byId = new Map(candidates.map((c) => [c.id, c]));
-  return pregroup(candidates).map((ids) => {
+  return pregroup(candidates, 0.55, semanticThreshold).map((ids) => {
     const members = ids.map((id) => byId.get(id)!);
     const best = Math.max(...members.map((m) => m.prescore ?? 0));
-    const rel = clamp(best * 4, 0, 10);
+    const semantic = Math.max(...members.map((m) => m.semantic ?? -1));
+    const rel = semantic >= 0 ? clamp(semantic * 10, 0, 10) : clamp(best * 4, 0, 10);
     const cred = members.reduce((s, m) => s + credibilityPrior(m.url).score, 0) / members.length;
     return {
       id: clusterId(ids),
@@ -65,7 +79,10 @@ export function heuristicClusters(candidates: Candidate[]): Cluster[] {
       category: majorityCategory(members),
       label: members[0].title,
       scores: { relevance: rel, impact: 5, novelty: 6, credibility: cred, value: clamp(rel * 0.8, 0, 10) },
-      rationale: "Scored heuristically from keyword overlap with your profile (model clustering unavailable).",
+      rationale:
+        semantic >= 0
+          ? "Scored heuristically from semantic similarity to your profile (model clustering unavailable)."
+          : "Scored heuristically from keyword overlap with your profile (model clustering unavailable).",
     };
   });
 }
@@ -73,21 +90,25 @@ export function heuristicClusters(candidates: Candidate[]): Cluster[] {
 export function candidateLine(c: Candidate): string {
   const date = c.publishedAt ? c.publishedAt.slice(0, 10) : "date?";
   const src = c.publisher ? `${c.publisher} (${c.domain})` : c.domain;
-  const signals = c.signals?.length ? c.signals.join(",") : "-";
+  const signals = [...(c.signals ?? []), ...(c.watch?.length && !c.signals?.includes("watchlist") ? ["watchlist"] : [])].join(",") || "-";
+  const match = c.semantic !== undefined ? c.semantic.toFixed(2) : "-";
   const snippet = truncate((c.snippet || c.content || "").replace(/\s+/g, " "), 200);
-  return `${c.id} | ${c.categoryHint ?? "other"} | ${date} | ${src} | ${signals} | ${c.title}${snippet ? ` — ${snippet}` : ""}`;
+  return `${c.id} | ${c.categoryHint ?? "other"} | ${date} | ${src} | ${signals} | ${match} | ${c.title}${snippet ? ` — ${snippet}` : ""}`;
 }
 
 /** Stage 5: group related candidates into stories and have the model rate each story for this reader. */
 export async function clusterStage(ctx: StageContext): Promise<StageResult> {
   const interest = ctx.run.state.interest!;
-  const candidates = ctx.run.state.candidates ?? [];
+  const all = ctx.run.state.candidates ?? [];
+  const candidates = all.slice(0, LLM_CANDIDATES);
+  const extra = all.slice(LLM_CANDIDATES);
+  const semanticThreshold = ctx.run.state.semantic ? getEmbedder()?.calibration.sameStory : undefined;
   if (!candidates.length) {
     ctx.run.state.clusters = [];
     ctx.log("warn", "No candidates were found in the 7-day window.");
     return { done: true };
   }
-  const byId = new Map(candidates.map((c) => [c.id, c]));
+  const byId = new Map(all.map((c) => [c.id, c]));
   const enabled = CATEGORIES.filter((c) => ctx.profile.preferences.categories[c] !== false);
   const recent = await ctx.store.recentEditions(ctx.profile.id, 3);
   const previouslyCovered = recent.flatMap((e) => e.items.map((i) => i.title)).slice(0, 30);
@@ -116,15 +137,16 @@ export async function clusterStage(ctx: StageContext): Promise<StageResult> {
             }),
           },
         ],
-        mockContext: { candidates, groups: pregroup(candidates) },
+        mockContext: { candidates, groups: pregroup(candidates, 0.55, semanticThreshold) },
       },
       ClusterSchema,
     );
 
     const used = new Set<string>();
     clusters = [];
+    const offered = new Set(candidates.map((c) => c.id));
     for (const k of out.clusters) {
-      const ids = [...new Set(k.ids)].filter((id) => byId.has(id) && !used.has(id));
+      const ids = [...new Set(k.ids)].filter((id) => offered.has(id) && !used.has(id));
       if (!ids.length) continue;
       ids.forEach((id) => used.add(id));
       const members = ids.map((id) => byId.get(id)!);
@@ -143,10 +165,11 @@ export async function clusterStage(ctx: StageContext): Promise<StageResult> {
         rationale: k.rationale,
       });
     }
-    // Attach unassigned near-duplicates to the cluster they obviously belong to, so items aggregate all sources.
-    for (const c of candidates) {
+    // Attach unassigned near-duplicates (including candidates beyond what the model saw) to the story they
+    // obviously belong to, so items aggregate all sources.
+    for (const c of [...candidates, ...extra]) {
       if (used.has(c.id)) continue;
-      const home = clusters.find((k) => k.candidateIds.some((id) => titleSimilarity(byId.get(id)!.title, c.title) >= 0.6));
+      const home = clusters.find((k) => k.candidateIds.some((id) => sameStory(byId.get(id)!, c, 0.6, semanticThreshold)));
       if (home) {
         home.candidateIds.push(c.id);
         used.add(c.id);
@@ -155,11 +178,11 @@ export async function clusterStage(ctx: StageContext): Promise<StageResult> {
     if (!clusters.length) throw new Error("model returned no usable clusters");
   } catch (e) {
     ctx.log("warn", `Model clustering failed (${e instanceof Error ? e.message : String(e)}); using heuristic clustering.`);
-    clusters = heuristicClusters(candidates);
+    clusters = heuristicClusters(candidates, semanticThreshold);
   }
 
   ctx.run.state.clusters = clusters;
-  ctx.log("info", `${candidates.length} candidates grouped into ${clusters.length} stories.`);
+  ctx.log("info", `${candidates.length} top candidates grouped into ${clusters.length} stories${extra.length ? ` (${extra.length} lower-ranked candidates were only matched to these stories)` : ""}.`);
   await ctx.detail(`${clusters.length} distinct stories`);
   return { done: true };
 }

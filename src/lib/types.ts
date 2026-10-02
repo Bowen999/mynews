@@ -57,7 +57,47 @@ export interface SourceSnapshot {
     scholarAffiliation?: string;
     scholarInterests?: string[];
     paperTitles?: string[];
+    /** Google Scholar user id and the "Cited by" cluster ids of the listed papers. */
+    scholarUserId?: string;
+    scholarPapers?: ScholarPaper[];
   };
+}
+
+export interface ScholarPaper {
+  title: string;
+  /** Google Scholar citation cluster id (the `cites=` parameter of the "Cited by" link). */
+  citesId?: string;
+  citedBy?: number;
+  year?: number;
+}
+
+/** Who the person is in scholarly indexes, used for "cites your work", co-author and recommendation searches. */
+export interface ScholarIdentity {
+  /** Semantic Scholar author id. */
+  s2AuthorId?: string;
+  displayName?: string;
+  confidence?: "high" | "medium" | "low";
+  /** Semantic Scholar ids of the person's papers (most cited first). */
+  paperIds?: string[];
+  /** Titles of the person's papers; embedded as "your work" prototypes. */
+  paperTitles?: string[];
+  /** Semantic Scholar ids of frequent co-authors. */
+  coauthorIds?: string[];
+  coauthorNames?: string[];
+  /** Google Scholar profile id and citation cluster ids of the most-cited papers. */
+  scholarUserId?: string;
+  citesIds?: string[];
+  note?: string;
+  resolvedAt?: string;
+}
+
+/** An embedded reference point for semantic ranking ("topic", "your paper", "muted"…). */
+export interface Prototype {
+  kind: "topic" | "work" | "negative";
+  label: string;
+  weight: number;
+  /** int8-quantized, base64-encoded unit vector. */
+  v: string;
 }
 
 export interface InterestTopic {
@@ -93,15 +133,10 @@ export interface InterestProfile {
   queries: SearchQuery[];
   languages: Lang[];
   exclusions: string[];
-  /** OpenAlex author resolution (optional, may be ambiguous). */
-  scholar?: {
-    openalexAuthorId?: string;
-    displayName?: string;
-    confidence?: "high" | "medium" | "low";
-    topWorkIds?: string[];
-    coauthorIds?: string[];
-    note?: string;
-  };
+  /** Scholarly identity (Semantic Scholar + Google Scholar); optional and may be ambiguous. */
+  scholar?: ScholarIdentity;
+  /** Embedded topics, own papers and muted topics for semantic ranking (absent without an embedder). */
+  prototypes?: { model: string; hash: string; items: Prototype[] };
   /** Fingerprint of inputs used to build this profile (sources + prefs + feedback). */
   inputHash?: string;
   updatedAt: string;
@@ -114,15 +149,19 @@ export interface Preferences {
   pinnedTopics: string[];
   mutedTopics: string[];
   notes: string;
-  /** Force a specific OpenAlex author id (e.g. "A5023888391") when auto-resolution is ambiguous. */
-  openalexAuthorId?: string;
+  /** Force a specific Semantic Scholar author id when auto-resolution is ambiguous. */
+  semanticScholarAuthorId?: string;
+  /** Names to track exactly (people, companies, grants, products). */
+  watchTerms: string[];
+  /** RSS/Atom feeds to read every week (lab news, journal TOCs, blogs). */
+  watchFeeds: string[];
   /** Personal ntfy topic (name or full URL) for this account's notifications. */
   ntfyTopic?: string;
 }
 
 export function defaultPreferences(): Preferences {
   const categories = Object.fromEntries(CATEGORIES.map((c) => [c, true])) as Record<Category, boolean>;
-  return { outputLanguage: "en", categories, pinnedTopics: [], mutedTopics: [], notes: "" };
+  return { outputLanguage: "en", categories, pinnedTopics: [], mutedTopics: [], notes: "", watchTerms: [], watchFeeds: [] };
 }
 
 export interface Profile {
@@ -160,6 +199,15 @@ export interface Candidate {
   imageUrl?: string;
   /** Personal signals, e.g. the paper cites the user's work or is by a co-author. */
   signals?: string[];
+  /** Semantic Scholar paper id (lets liked papers seed recommendations). */
+  paperId?: string;
+  /** Embedding of title + snippet (int8 base64), when an embedder is configured. */
+  embedding?: string;
+  /** Best semantic match with the reader's prototypes, 0..1, and what it matched. */
+  semantic?: number;
+  matched?: string;
+  /** Watchlist terms found in the text. */
+  watch?: string[];
   prescore?: number;
   /** Other URLs merged into this candidate by exact/near-duplicate detection. */
   duplicates?: { url: string; publisher?: string; provider: string }[];
@@ -182,6 +230,8 @@ export interface Cluster {
   rationale: string;
   total?: number;
   adjustments?: string[];
+  /** Centroid of the members' embeddings (int8 base64). */
+  embedding?: string;
 }
 
 export interface BriefingSource {
@@ -193,6 +243,7 @@ export interface BriefingSource {
   publishedAt?: string;
   dateSource: DateSource;
   provider: string;
+  paperId?: string;
 }
 
 export interface KeyFact {
@@ -225,6 +276,8 @@ export interface BriefingItem {
   imageUrl?: string;
   confidence: "high" | "medium" | "low";
   verification: { checkedClaims: number; removedClaims: number; notes: string[] };
+  /** Story centroid embedding (int8 base64); used for novelty against later editions and feedback learning. */
+  embedding?: string;
 }
 
 export interface AlsoNoted {
@@ -311,6 +364,8 @@ export interface RunState {
   providers?: string[];
   candidates?: Candidate[];
   rawCount?: number;
+  /** Candidates were scored with embeddings. */
+  semantic?: boolean;
   clusters?: Cluster[];
   selected?: string[]; // cluster ids, ordered
   alsoNoted?: AlsoNoted[];
@@ -356,10 +411,22 @@ export interface Feedback {
   createdAt: string;
 }
 
+/** Implicit feedback: a story page was opened or one of its sources was clicked. */
+export interface Interaction {
+  id: string;
+  profileId: string;
+  editionId: string;
+  itemId: string;
+  category: Category;
+  kind: "open" | "source";
+  createdAt: string;
+}
+
 export interface SystemStatus {
   llm: string;
   search: string[];
   scholarly: string[];
+  embeddings: string;
   storage: "supabase" | "file";
   ntfyTopic: string;
   advisories: string[];

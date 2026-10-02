@@ -18,32 +18,60 @@ a self-contained interactive HTML page that you can open or download.
 its own reference sources, interest profile, editions, feedback and ntfy topic, and nobody can see another account's data.
 Weekly usage limits protect your API credits; admins are exempt.
 
-- **Stack:** Next.js 16 (App Router) · Vercel · Supabase (Postgres) · DeepSeek API · Tavily/Exa/Serper/Brave search · OpenAlex & arXiv · ntfy.sh
+- **Stack:** Next.js 16 (App Router) · Vercel · Supabase (Postgres) · DeepSeek API · Jina (embeddings + Reader) · Tavily/Exa/Serper/Brave search · Semantic Scholar, Europe PMC, arXiv & Google Scholar · ntfy.sh
 - **No self-managed server:** everything runs as Vercel functions plus a hosted Supabase database.
 
 ## How a briefing is made
 
 ```
-Generate ─► 1 sources     fetch & snapshot reference pages (Jina Reader fallback; Scholar parser)
+Generate ─► 1 sources     fetch & snapshot reference pages (Jina Reader fallback; Google Scholar profile parser)
             2 profile     DeepSeek builds/updates the interest profile (topics, entities, queries);
-                          OpenAlex matches the author for "cites your work" / co-author tracking
-            3 search      ~40 provider-routed queries, all limited to the last 7 days
+                          Semantic Scholar + Google Scholar resolve who you are (your papers, co-authors,
+                          citation ids); Jina embeds topics, your papers and muted topics
+            3 search      ~50 queries in parallel lanes, all limited to the last 7 days (multi-path recall below);
+                          every result is embedded and scored against your profile and reading history
             4 collect     normalize, URL/DOI dedupe, pre-score, fetch full text, verify dates
-            5 cluster     DeepSeek groups related items into stories and rates each one
-            6 rank        weighted score + transparent adjustments + category diversity → top 10
+            5 cluster     embeddings + headlines pre-group the same story; DeepSeek clusters and rates the
+                          top 50 candidates
+            6 rank        weighted score + transparent adjustments + category cap + diversity (MMR) → top 10
             7 synthesize  DeepSeek writes each item from numbered sources; a verifier removes
                           uncited or numerically unsupported claims
             8 publish     edition cover, standalone HTML, save, ntfy notification
 ```
 
+**Recall: where candidates come from.**
+- **Web and news:** Tavily / Exa / Serper / Brave (keyless Bing/Google News RSS as a fallback), with domain filters for WeChat and patents.
+- **Papers by topic:** Semantic Scholar, Europe PMC (PubMed, PMC, bioRxiv/medRxiv), arXiv and Google Scholar (sorted by date), all limited to the window.
+- **Personal paths:** your new papers and your frequent co-authors' papers (Semantic Scholar author feeds); new papers citing your
+  most-cited work (Semantic Scholar citations and Google Scholar "cited by"); and Semantic Scholar recommendations seeded with
+  your papers plus papers you marked "more like this" (papers you marked "less like this" are negative seeds).
+- **Watchlist:** names you follow are searched verbatim, and your RSS/Atom feeds are read every week.
+
 **Ranking.** `score = 30% relevance + 20% impact + 15% novelty + 15% credibility + 20% value to you`, from the
-model's 0–10 ratings. Credibility is blended with a per-domain prior. Visible adjustments are then applied:
+model's 0–10 ratings. Relevance is blended (25%) with the embedding match, and credibility with a per-domain prior.
+Visible adjustments are then applied:
 - a bonus when independent sources corroborate each other;
 - a bonus for personal signals (a paper that cites your work, a co-author's work, your own new paper);
+- a bonus for watchlist matches;
+- a smaller bonus for Semantic Scholar recommendations;
+- a learned bonus or penalty per category, from what you open and rate;
 - a penalty for undated or headline-only items;
-- a penalty for stories already covered in recent editions.
+- a penalty for stories already covered in recent editions, by URL, headline or meaning.
 
-At most 4 items per category are picked, and stories the model rates below 3/10 for relevance are never picked.
+At most 4 items per category are picked, and stories the model rates below 3/10 for relevance are never picked. With
+embeddings, a story that closely resembles one already picked loses up to 20 points (maximal marginal relevance), so the
+ten items cover different ground. Each story says which part of your profile it matched ("Closest to your paper …").
+
+**Learning from you.**
+- *Explicit:* "More / less like this" on each story.
+- *Implicit:* opening a story and following its sources.
+- *Effect:*
+  - liked and read stories become extra reference points for semantic scoring;
+  - disliked stories and muted topics damp similar items;
+  - liked papers seed recommendations;
+  - category affinity nudges the ranking.
+- The profile page shows what has been learned, and the archive shows how many stories of each edition you read.
+- Learning signals are per account and never shared.
 
 **Traceability.**
 - The model only sees numbered sources (`[S1]…[Sn]`) and must cite them.
@@ -66,8 +94,9 @@ It never waits silently: input problems are reported both in the UI and through 
 
 ## Deploy (Vercel + Supabase)
 
-1. **Supabase database:** create a project, open *SQL Editor*, and run both files in order:
-   [`0001_init.sql`](supabase/migrations/0001_init.sql), then [`0002_accounts.sql`](supabase/migrations/0002_accounts.sql).
+1. **Supabase database:** create a project, open *SQL Editor*, and run the files in order:
+   [`0001_init.sql`](supabase/migrations/0001_init.sql), [`0002_accounts.sql`](supabase/migrations/0002_accounts.sql), then
+   [`0003_interactions.sql`](supabase/migrations/0003_interactions.sql). Upgrading? Just run the ones you haven't run yet.
    RLS is enabled with no policies, so only the server (service role) can read or write data.
 2. **Supabase keys** (*Project Settings → API*):
    - the **Project URL** (`https://<project-ref>.supabase.co`, not the `supabase.com/dashboard/...` link);
@@ -79,9 +108,13 @@ It never waits silently: input problems are reported both in the UI and through 
    - add `https://<your-app>/auth/callback` to **Redirect URLs**, so confirmation and password-reset emails land back in the app.
    Under *Authentication → Sign In / Providers → Email* you can turn **Confirm email** off for frictionless sign-up.
    Supabase's built-in mailer sends only a few emails per hour; add custom SMTP if you expect many users.
-4. **Search API:** create a [Tavily](https://tavily.com) key. Exa, Serper or Brave also work; you can set several and they are tried in order.
+4. **Search and ranking keys:**
+   - a [Tavily](https://tavily.com) key (Exa, Serper or Brave also work; you can set several and they are tried in order);
+   - a [Jina](https://jina.ai) key, which turns on semantic ranking and raises the Jina Reader limits used for Google Scholar;
+   - optionally a free [Semantic Scholar](https://www.semanticscholar.org/product/api) key, which makes citation tracking and recommendations reliable.
 5. **Vercel:** import this GitHub repo and add the environment variables from [`.env.example`](.env.example). The minimum is:
-   `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ADMIN_EMAILS`.
+   `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ADMIN_EMAILS`,
+   plus `JINA_API_KEY` (recommended).
    Optionally restrict who can join with `AUTH_ALLOWED_EMAILS` / `AUTH_ALLOWED_DOMAINS`, or close sign-up with `SIGNUPS_DISABLED=1`.
    Deploy.
 6. Open the site, create your account with the email listed in `ADMIN_EMAILS`, add your reference URLs on **Profile**,
@@ -125,8 +158,10 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 | `DEEPSEEK_THINKING` | `disabled` (default) / `enabled` for V4 thinking mode. |
 | `LLM_PROVIDER` | `deepseek` or `openai-compatible` (+ `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`). |
 | `TAVILY_API_KEY` / `EXA_API_KEY` / `SERPER_API_KEY` / `BRAVE_API_KEY` | Web and news search restricted to the past week. Without any key, keyless news RSS is used (limited coverage). |
-| `JINA_API_KEY` | Optional; higher limits for the Jina Reader extraction fallback. |
-| `OPENALEX_API_KEY`, `OPENALEX_MAILTO` | Optional; OpenAlex has a small keyless daily budget. |
+| `JINA_API_KEY` | Recommended. Semantic ranking with Jina embeddings, plus higher Jina Reader limits (page reading, Google Scholar). Without it, ranking uses keywords only. |
+| `JINA_EMBEDDING_MODEL`, `JINA_EMBEDDING_DIMS` | `jina-embeddings-v3` and `256` by default. Changing either re-embeds profiles on the next run. `EMBEDDINGS_DISABLED=1` turns semantic ranking off. |
+| `SEMANTIC_SCHOLAR_API_KEY` | Optional; Semantic Scholar works keyless on a shared, often busy limit. |
+| `GOOGLE_SCHOLAR_DISABLED` | `1` skips Google Scholar searches (read through Jina Reader; may hit captchas). |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Storage; required on Vercel. |
 | `SUPABASE_ANON_KEY` | Sign-in (Supabase Auth, server-side only); required on Vercel. `SUPABASE_PUBLISHABLE_KEY` also works. |
 | `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, system status, owner notifications. |
@@ -142,9 +177,12 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 
 ```
 src/lib/llm/          provider interface, DeepSeek + generic OpenAI-compatible, JSON validation/repair, mock
-src/lib/search/       Tavily, Exa, Serper, Brave, OpenAlex, arXiv, Bing/Google News RSS, routing & fallbacks
+src/lib/search/       Tavily, Exa, Serper, Brave, Semantic Scholar, Europe PMC, arXiv, Google Scholar, RSS/Atom feeds,
+                      Bing/Google News RSS; rate-limited lanes & fallbacks
+src/lib/embed/        Jina embeddings client, offline mock embedder, int8 vector encoding
 src/lib/extract/      page fetching, Readability extraction, date detection (meta, JSON-LD, WeChat), Scholar parser
-src/lib/pipeline/     the eight stages, prompts, verifier, ranking, runner (leases, resume, notifications)
+src/lib/pipeline/     the eight stages, prompts, verifier, identity resolution, semantic scoring & feedback learning,
+                      ranking, runner (leases, resume, notifications)
 src/lib/store/        Supabase store and local file store behind one interface
 src/lib/auth/         Supabase Auth (server-side cookies) and local dev accounts behind one interface; allow-list policy
 src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.ts usage limits
@@ -159,9 +197,12 @@ To add a search source, implement `SearchProvider` and add it to the routing in 
 
 ## Limits and notes
 
-- **Google Scholar** often blocks server requests. The app tries a direct fetch, then Jina Reader, and otherwise falls
-  back to the last good snapshot. Add a homepage or ORCID alongside it. Setting your OpenAlex author ID on the Profile page
-  makes citation tracking exact.
+- **Google Scholar** has no API and often blocks servers.
+  - Your profile page is read directly, then through Jina Reader, and otherwise from the last good snapshot.
+  - Weekly searches go through Jina Reader. When Scholar answers with a captcha, it is skipped for that run, and Semantic
+    Scholar and Europe PMC still cover papers.
+  - Add a homepage alongside your Scholar profile.
+  - If the automatic match is wrong, set your Semantic Scholar author ID on the Profile page.
 - **WeChat and patents** are found through domain-restricted web search (`mp.weixin.qq.com`, Google Patents, WIPO…),
   so they need a search API key.
 - **Undated pages** found by a past-week search filter are allowed but penalized, and labeled "date unverified".

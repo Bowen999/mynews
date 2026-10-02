@@ -147,6 +147,8 @@ export interface ScholarProfile {
   affiliation?: string;
   interests: string[];
   paperTitles: string[];
+  /** Listed papers with their "Cited by" cluster id (for tracking new citations), count and year. */
+  papers: { title: string; citesId?: string; citedBy?: number; year?: number }[];
 }
 
 /** Parse a Google Scholar citations profile page (if it could be fetched). */
@@ -157,8 +159,28 @@ export function parseScholarProfile(html: string): ScholarProfile | null {
   const name = doc.querySelector("#gsc_prf_in")?.textContent?.trim();
   const affiliation = doc.querySelector(".gsc_prf_il")?.textContent?.trim();
   const interests = [...doc.querySelectorAll("#gsc_prf_int a")].map((a) => a.textContent?.trim() ?? "").filter(Boolean);
-  const paperTitles = [...doc.querySelectorAll(".gsc_a_at")].map((a) => a.textContent?.trim() ?? "").filter(Boolean);
-  return { name, affiliation, interests, paperTitles };
+  const papers = [...doc.querySelectorAll(".gsc_a_tr")]
+    .map((row) => {
+      const title = row.querySelector(".gsc_a_at")?.textContent?.trim() ?? "";
+      const cited = row.querySelector(".gsc_a_ac");
+      const citesId = cited?.getAttribute("href")?.match(/[?&]cites=([\d,]+)/)?.[1]?.split(",")[0];
+      const citedBy = Number(cited?.textContent?.trim());
+      const year = Number(row.querySelector(".gsc_a_y span, .gsc_a_h")?.textContent?.trim());
+      return {
+        title,
+        citesId: citesId || undefined,
+        citedBy: Number.isFinite(citedBy) && citedBy > 0 ? citedBy : undefined,
+        year: Number.isFinite(year) && year > 1900 ? year : undefined,
+      };
+    })
+    .filter((p) => p.title);
+  const paperTitles = papers.length ? papers.map((p) => p.title) : [...doc.querySelectorAll(".gsc_a_at")].map((a) => a.textContent?.trim() ?? "").filter(Boolean);
+  return { name, affiliation, interests, paperTitles, papers };
+}
+
+/** The `user=` id of a Google Scholar profile URL. */
+export function scholarUserId(url: string): string | undefined {
+  return url.match(/[?&]user=([\w-]+)/)?.[1];
 }
 
 export function findOrcid(text: string): string | undefined {

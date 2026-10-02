@@ -53,25 +53,38 @@ export async function fetchPage(url: string, timeoutMs = 12000): Promise<Fetched
 }
 
 interface JinaResponse {
-  data?: { title?: string; content?: string; description?: string; publishedTime?: string; url?: string };
+  data?: { title?: string; content?: string; text?: string; html?: string; description?: string; publishedTime?: string; url?: string };
+}
+
+function jinaHeaders(format: "text" | "html"): Record<string, string> {
+  const headers: Record<string, string> = { Accept: "application/json", "X-Return-Format": format };
+  if (config.search.jinaKey) headers.Authorization = `Bearer ${config.search.jinaKey}`;
+  return headers;
 }
 
 /** Jina Reader (r.jina.ai) renders JS-heavy or bot-protected pages into text. */
 export async function jinaRead(url: string, timeoutMs = 25000): Promise<ExtractedPage> {
   if (!isPublicHttpUrl(url)) throw new Error("refusing to fetch a non-public URL");
-  const headers: Record<string, string> = { Accept: "application/json", "X-Return-Format": "text" };
-  if (config.search.jinaKey) headers.Authorization = `Bearer ${config.search.jinaKey}`;
-  const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal: AbortSignal.timeout(timeoutMs) });
+  const res = await fetch(`https://r.jina.ai/${url}`, { headers: jinaHeaders("text"), signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`jina HTTP ${res.status}`);
   const json = (await res.json()) as JinaResponse;
   const d = json.data ?? {};
   return {
     title: d.title,
-    text: d.content ?? "",
+    text: d.text ?? d.content ?? "",
     description: d.description,
     publishedAt: d.publishedTime,
     dateSource: d.publishedTime ? "metadata" : "unknown",
   };
+}
+
+/** Rendered HTML of a page through Jina Reader (used for Google Scholar, which blocks most servers). */
+export async function jinaHtml(url: string, timeoutMs = 30000): Promise<string> {
+  if (!isPublicHttpUrl(url)) throw new Error("refusing to fetch a non-public URL");
+  const res = await fetch(`https://r.jina.ai/${url}`, { headers: jinaHeaders("html"), signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`jina HTTP ${res.status}`);
+  const json = (await res.json()) as JinaResponse;
+  return json.data?.html ?? json.data?.content ?? json.data?.text ?? "";
 }
 
 export interface ExtractOptions {

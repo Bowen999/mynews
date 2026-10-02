@@ -23,13 +23,15 @@ export function getStore(): Store {
   return cached;
 }
 
-/** Backfill preference keys added in later versions. */
+/** Backfill preference keys added in later versions and drop retired ones. */
 export function withPreferenceDefaults(profile: Profile): Profile {
   const defaults = defaultPreferences();
+  const { openalexAuthorId: _retired, ...stored } = (profile.preferences ?? {}) as Profile["preferences"] & { openalexAuthorId?: string };
+  void _retired;
   profile.preferences = {
     ...defaults,
-    ...profile.preferences,
-    categories: { ...defaults.categories, ...(profile.preferences?.categories ?? {}) },
+    ...stored,
+    categories: { ...defaults.categories, ...(stored.categories ?? {}) },
   };
   return profile;
 }

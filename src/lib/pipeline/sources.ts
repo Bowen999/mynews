@@ -1,7 +1,7 @@
 import { config } from "../config";
-import { extractUrl, fetchPage, jinaRead } from "../extract";
+import { extractUrl, fetchPage, jinaHtml, jinaRead } from "../extract";
 import { mockSourceDocument } from "../mock/corpus";
-import { bodyText, findOrcid, parseScholarProfile } from "../extract/html";
+import { bodyText, findOrcid, parseScholarProfile, scholarUserId } from "../extract/html";
 import type { SourceSnapshot } from "../types";
 import { pMap } from "../util/concurrency";
 import { collapseWhitespace, sha1, truncate } from "../util/text";
@@ -11,36 +11,48 @@ import { NeedsInputError, type StageContext, type StageResult } from "./context"
 const MAX_SOURCES = 12;
 const MAX_TEXT = 14000;
 
+function scholarSnapshot(url: string, html: string, via: "direct" | "jina"): Omit<SourceSnapshot, "fetchedAt" | "hash"> | null {
+  const scholar = parseScholarProfile(html);
+  if (!scholar?.name) return null;
+  const text = [
+    `Google Scholar profile: ${scholar.name}`,
+    scholar.affiliation ? `Affiliation: ${scholar.affiliation}` : "",
+    scholar.interests.length ? `Research interests: ${scholar.interests.join(", ")}` : "",
+    scholar.paperTitles.length ? `Publications:\n- ${scholar.paperTitles.join("\n- ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return {
+    url,
+    title: `${scholar.name} - Google Scholar`,
+    text,
+    status: "ok",
+    via,
+    hints: {
+      scholarName: scholar.name,
+      scholarAffiliation: scholar.affiliation,
+      scholarInterests: scholar.interests,
+      paperTitles: scholar.paperTitles,
+      scholarUserId: scholarUserId(url),
+      scholarPapers: scholar.papers,
+    },
+  };
+}
+
 async function readScholar(url: string): Promise<Omit<SourceSnapshot, "fetchedAt" | "hash">> {
-  // Google Scholar often blocks servers; try direct first, then Jina Reader.
+  // Google Scholar often blocks servers: try direct, then Jina Reader's rendered HTML (keeps citation ids), then its text.
+  const target = url.includes("hl=") ? url : `${url}${url.includes("?") ? "&" : "?"}hl=en`;
   try {
-    const page = await fetchPage(url.includes("hl=") ? url : `${url}${url.includes("?") ? "&" : "?"}hl=en`, 12000);
-    const scholar = parseScholarProfile(page.body);
-    if (scholar?.name) {
-      const text = [
-        `Google Scholar profile: ${scholar.name}`,
-        scholar.affiliation ? `Affiliation: ${scholar.affiliation}` : "",
-        scholar.interests.length ? `Research interests: ${scholar.interests.join(", ")}` : "",
-        scholar.paperTitles.length ? `Publications:\n- ${scholar.paperTitles.join("\n- ")}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-      return {
-        url,
-        title: `${scholar.name} - Google Scholar`,
-        text,
-        status: "ok",
-        via: "direct",
-        hints: {
-          scholarName: scholar.name,
-          scholarAffiliation: scholar.affiliation,
-          scholarInterests: scholar.interests,
-          paperTitles: scholar.paperTitles,
-        },
-      };
-    }
+    const snap = scholarSnapshot(url, (await fetchPage(target, 12000)).body, "direct");
+    if (snap) return snap;
   } catch {
     // fall through to Jina
+  }
+  try {
+    const snap = scholarSnapshot(url, await jinaHtml(target), "jina");
+    if (snap) return snap;
+  } catch {
+    // fall through to plain text
   }
   const viaJina = await jinaRead(url);
   return { url, title: viaJina.title, text: viaJina.text, status: "ok", via: "jina" };
@@ -49,7 +61,7 @@ async function readScholar(url: string): Promise<Omit<SourceSnapshot, "fetchedAt
 async function readSource(url: string): Promise<Omit<SourceSnapshot, "fetchedAt" | "hash">> {
   if (config.mockMode) {
     const doc = mockSourceDocument(url);
-    return { url, title: doc.title, text: doc.text, status: "ok", via: "direct" };
+    return { url, title: doc.title, text: doc.text, status: "ok", via: "direct", hints: doc.hints };
   }
   if (/scholar\.google\./.test(domainOf(url))) return readScholar(url);
   const page = await extractUrl(url, { allowJina: true, timeoutMs: 15000 });

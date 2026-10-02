@@ -61,6 +61,8 @@ export function parseArxivFeed(xml: string, provider = "arxiv"): RawResult[] {
 /** arXiv API (free). Only useful for fields with arXiv coverage; results are date-bounded server-side. */
 export class ArxivProvider implements SearchProvider {
   readonly name = "arxiv";
+  /** arXiv asks clients to space requests about 3 seconds apart. */
+  readonly minIntervalMs = 3000;
   async search(task: SearchTask, ctx: SearchContext): Promise<RawResult[]> {
     const params = new URLSearchParams({
       search_query: buildArxivQuery(task.query, ctx.window.start, ctx.window.end),

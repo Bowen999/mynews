@@ -4,7 +4,7 @@ import type { BriefingItem, Edition } from "@/lib/types";
 import { formatDay } from "@/lib/util/dates";
 import { dateSpan } from "./EditionIndex";
 import { Prose } from "./Prose";
-import { Analysis, FeedbackButtons } from "./StoryClient";
+import { Analysis, FeedbackButtons, ReadTracker } from "./StoryClient";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -15,6 +15,7 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
   const base = `/editions/${edition.id}`;
 
   return (
+    <ReadTracker editionId={edition.id} itemId={item.id}>
     <article>
       <header className="article-head">
         <nav className="crumbs label" aria-label="Breadcrumb">
@@ -144,7 +145,7 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
               <li key={s.id} id={`source-${sourceNumber(s.id)}`}>
                 <span className="sn">{pad(Number(sourceNumber(s.id)))}</span>
                 <div>
-                  <a className="t" href={s.url} target="_blank" rel="noopener noreferrer">
+                  <a className="t" href={s.url} target="_blank" rel="noopener noreferrer" data-source>
                     {s.title} ↗
                   </a>
                   <span className="src-meta">
@@ -206,5 +207,6 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
         )}
       </nav>
     </article>
+    </ReadTracker>
   );
 }

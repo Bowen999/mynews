@@ -9,13 +9,14 @@ import { canonicalizeUrl, domainOf, extractDoi, isGitHub, safeUrl } from "../uti
 import type { StageContext, StageResult } from "./context";
 import { credibilityPrior } from "./credibility";
 import { planSearch } from "./plan";
+import { emptyFeedback, loadFeedbackContext, scoreSemantics, SEMANTIC_WEIGHT } from "./semantic";
 
 const MAX_CONTENT = 6000;
 const KEEP_AFTER_SEARCH = 240;
 const ENRICH_TOP = 70;
 const KEEP_AFTER_COLLECT = 80;
 
-const SIGNAL_BOOST: Record<string, number> = { "your-work": 1.5, "cites-your-work": 1.2, coauthor: 0.8 };
+const SIGNAL_BOOST: Record<string, number> = { "your-work": 1.5, "cites-your-work": 1.2, coauthor: 0.8, watchlist: 0.8, recommended: 0.5 };
 
 function phraseHit(textLower: string, phrase: string): boolean {
   const p = phrase.toLowerCase().trim();
@@ -26,7 +27,16 @@ function phraseHit(textLower: string, phrase: string): boolean {
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "u").test(textLower);
 }
 
-/** Cheap lexical relevance used to decide which candidates are worth fetching and clustering. */
+/** Watchlist terms that appear in the candidate's title or text. */
+export function watchHits(c: Candidate, terms: string[]): string[] {
+  const text = `${c.title} ${c.snippet} ${(c.content ?? "").slice(0, 3000)}`.toLowerCase();
+  return terms.filter((t) => phraseHit(text, t));
+}
+
+/**
+ * Pre-score used to decide which candidates are worth fetching and clustering: keyword overlap with the
+ * profile, plus the semantic match with the reader's prototypes when embeddings are available.
+ */
 export function prescore(c: Candidate, profile: InterestProfile): number {
   const title = c.title.toLowerCase();
   const body = `${c.snippet} ${(c.content ?? "").slice(0, 2000)}`.toLowerCase();
@@ -51,6 +61,8 @@ export function prescore(c: Candidate, profile: InterestProfile): number {
   score += Math.min(0.9, entityHits * 0.3);
   for (const x of profile.exclusions) if (phraseHit(title, x)) score -= 1;
   for (const s of c.signals ?? []) score += SIGNAL_BOOST[s] ?? 0;
+  if (c.watch?.length && !c.signals?.includes("watchlist")) score += SIGNAL_BOOST.watchlist;
+  if (c.semantic !== undefined) score += SEMANTIC_WEIGHT * c.semantic;
   score += credibilityPrior(c.url).score * 0.05;
   score += c.dateSource === "unknown" ? -0.2 : 0.1;
   if (!c.snippet && !c.content) score -= 0.2;
@@ -82,6 +94,7 @@ export function toCandidate(r: TaggedResult, window: Window): Candidate | null {
     doi: r.doi ?? extractDoi(r.url),
     imageUrl: r.imageUrl && safeUrl(r.imageUrl)?.protocol === "https:" ? r.imageUrl : undefined,
     signals: r.signals?.length ? [...new Set(r.signals)] : undefined,
+    paperId: r.paperId,
   };
 }
 
@@ -114,6 +127,7 @@ export function mergeDuplicates(list: Candidate[]): Candidate[] {
     existing.doi ??= c.doi;
     existing.imageUrl ??= c.imageUrl;
     existing.publisher ??= c.publisher;
+    existing.paperId ??= c.paperId;
     if (c.canonicalUrl !== existing.canonicalUrl) {
       existing.duplicates = [...(existing.duplicates ?? []), { url: c.url, publisher: c.publisher, provider: c.provider }];
     }
@@ -122,17 +136,24 @@ export function mergeDuplicates(list: Candidate[]): Candidate[] {
   return out;
 }
 
-/** Stage 3: plan and run searches across providers for the previous 7 days. */
+/** Stage 3: plan and run searches across providers for the previous 7 days, then score candidates semantically. */
 export async function searchStage(ctx: StageContext): Promise<StageResult> {
   const interest = ctx.run.state.interest;
   if (!interest) throw new Error("Interest profile missing");
-  const tasks = planSearch(interest, ctx.profile.preferences);
+  const feedback = await loadFeedbackContext(ctx.store, ctx.profile.id).catch((e) => {
+    ctx.log("warn", `Could not load reading history: ${e instanceof Error ? e.message : String(e)}`);
+    return emptyFeedback();
+  });
+  const tasks = planSearch(interest, ctx.profile.preferences, {
+    likedPaperIds: feedback.likedPaperIds,
+    dislikedPaperIds: feedback.dislikedPaperIds,
+  });
   await ctx.detail(`Running ${tasks.length} searches`);
   const outcome = await runSearchTasks(
     tasks,
     { window: ctx.window, maxResults: 12 },
     {
-      deadlineMs: Math.max(30000, ctx.deadline.remaining() - 30000),
+      deadlineMs: Math.max(30000, ctx.deadline.remaining() - 60000),
       onProgress: (done, total) => void ctx.detail(`Searched ${done} of ${total} queries`),
     },
   );
@@ -149,8 +170,27 @@ export async function searchStage(ctx: StageContext): Promise<StageResult> {
     else outOfWindow++;
   }
   const merged = mergeDuplicates(normalized);
-  for (const c of merged) c.prescore = prescore(c, interest);
+  const watchTerms = ctx.profile.preferences.watchTerms ?? [];
+  for (const c of merged) {
+    const hits = watchHits(c, watchTerms);
+    c.watch = hits.length ? hits : undefined;
+    c.prescore = prescore(c, interest);
+  }
   merged.sort((a, b) => (b.prescore ?? 0) - (a.prescore ?? 0));
+
+  // Semantic scoring with embeddings (topics, own papers, liked/read stories); keyword-only without an embedder.
+  if (!ctx.deadline.expired(25000)) {
+    try {
+      await ctx.detail(`Scoring ${Math.min(merged.length, 600)} candidates against your profile`);
+      if (await scoreSemantics(merged.slice(0, 600), interest, feedback)) {
+        for (const c of merged) c.prescore = prescore(c, interest);
+        merged.sort((a, b) => (b.prescore ?? 0) - (a.prescore ?? 0));
+        ctx.run.state.semantic = true;
+      }
+    } catch (e) {
+      ctx.log("warn", `Semantic scoring failed (${e instanceof Error ? e.message : String(e)}); using keyword scores.`);
+    }
+  }
 
   ctx.run.state.queriesRun = outcome.tasksRun;
   ctx.run.state.providers = outcome.providersUsed;
@@ -158,7 +198,7 @@ export async function searchStage(ctx: StageContext): Promise<StageResult> {
   ctx.run.state.candidates = merged.slice(0, KEEP_AFTER_SEARCH);
   ctx.log(
     "info",
-    `${outcome.results.length} results from ${outcome.providersUsed.join(", ")}; ${merged.length} unique after URL/DOI dedupe; ${outOfWindow} dropped (outside window or invalid).`,
+    `${outcome.results.length} results from ${outcome.providersUsed.join(", ")}; ${merged.length} unique after URL/DOI dedupe; ${outOfWindow} dropped (outside window or invalid).${ctx.run.state.semantic ? " Ranked semantically with embeddings." : ""}`,
   );
   await ctx.detail(`${outcome.results.length} results → ${merged.length} unique candidates`);
   return { done: true };
@@ -166,7 +206,7 @@ export async function searchStage(ctx: StageContext): Promise<StageResult> {
 
 function needsEnrichment(c: Candidate): boolean {
   if (c.domain === "news.google.com") return false; // redirect links cannot be fetched server-side
-  if (c.provider === "openalex" || c.provider === "arxiv" || c.provider === "mock") return false;
+  if (["semantic-scholar", "europe-pmc", "arxiv", "mock"].includes(c.provider) && c.content) return false; // abstracts already in hand
   return !c.content || c.content.length < 700 || c.dateSource === "unknown";
 }
 
@@ -230,7 +270,12 @@ export async function collectStage(ctx: StageContext): Promise<StageResult> {
     }
     return true;
   });
-  for (const c of kept) c.prescore = prescore(c, interest);
+  const watchTerms = ctx.profile.preferences.watchTerms ?? [];
+  for (const c of kept) {
+    const hits = watchHits(c, watchTerms);
+    c.watch = hits.length ? hits : undefined;
+    c.prescore = prescore(c, interest);
+  }
   kept.sort((a, b) => (b.prescore ?? 0) - (a.prescore ?? 0));
   ctx.run.state.candidates = kept.slice(0, KEEP_AFTER_COLLECT);
 

@@ -81,7 +81,7 @@ describe("Supabase configuration", () => {
   it("turns raw errors into short actionable messages", async () => {
     const { describeSupabaseError } = await import("../src/lib/store/supabase");
     expect(describeSupabaseError("getProfile", { message: '<!DOCTYPE html><html lang="en">…' })).toMatch(/SUPABASE_URL is wrong/);
-    expect(describeSupabaseError("getProfile", { message: "Could not find the table 'public.profiles'", code: "PGRST205" })).toMatch(/0001_init\.sql/);
+    expect(describeSupabaseError("getProfile", { message: "Could not find the table 'public.profiles'", code: "PGRST205" })).toMatch(/supabase\/migrations/);
     expect(describeSupabaseError("getProfile", { message: "permission denied for table profiles", code: "42501" })).toMatch(/service_role/);
     expect(describeSupabaseError("x", { message: "a".repeat(1000) }).length).toBeLessThan(330);
   });

@@ -1,6 +1,8 @@
 import { MOCK_CORPUS } from "../mock/corpus";
 import { tokenize } from "../util/text";
-import type { RawResult, SearchContext, SearchProvider, SearchTask } from "./types";
+import type { RawResult, SearchContext, SearchProvider, SearchTask, TaskKind } from "./types";
+
+const PAPER_KINDS: TaskKind[] = ["s2", "europepmc", "arxiv", "scholar"];
 
 /** Offline search over the fictional sample corpus (MOCK_MODE only). */
 export class MockSearchProvider implements SearchProvider {
@@ -9,8 +11,9 @@ export class MockSearchProvider implements SearchProvider {
   async search(task: SearchTask, ctx: SearchContext): Promise<RawResult[]> {
     const q = new Set(tokenize(task.query));
     const pool = MOCK_CORPUS.filter((d) => {
+      if (task.kind === "feed") return d.category === "people" || d.category === "event";
       if (task.signal) return d.signals?.includes(task.signal);
-      if (task.kind === "openalex" || task.kind === "arxiv") return d.category === "paper";
+      if (PAPER_KINDS.includes(task.kind)) return d.category === "paper";
       return d.category === task.category || (task.category === "news" && d.category !== "paper");
     });
     const ranked = pool
@@ -27,7 +30,8 @@ export class MockSearchProvider implements SearchProvider {
       publisher: d.publisher,
       authors: d.authors,
       venue: d.venue,
-      signals: d.signals,
+      signals: task.kind === "feed" ? ["watchlist"] : d.signals,
+      paperId: d.category === "paper" ? `mock-${d.url.split("/").pop()}` : undefined,
       provider: this.name,
     }));
   }

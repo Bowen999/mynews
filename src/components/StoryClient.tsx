@@ -1,6 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+function track(editionId: string, itemId: string, kind: "open" | "source") {
+  try {
+    void fetch("/api/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editionId, itemId, kind }),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // tracking is best-effort
+  }
+}
+
+/**
+ * Implicit feedback: records that this story was opened, and which of its sources were followed
+ * (links marked with data-source). Used only to rank this reader's future briefings.
+ */
+export function ReadTracker({ editionId, itemId, children }: { editionId: string; itemId: string; children: React.ReactNode }) {
+  useEffect(() => {
+    const t = setTimeout(() => track(editionId, itemId, "open"), 1500); // ignore instant bounces
+    return () => clearTimeout(t);
+  }, [editionId, itemId]);
+  return (
+    <div
+      onClickCapture={(e) => {
+        const a = (e.target as HTMLElement).closest?.("a[data-source]");
+        if (a) track(editionId, itemId, "source");
+      }}
+      onAuxClick={(e) => {
+        const a = (e.target as HTMLElement).closest?.("a[data-source]");
+        if (a && e.button === 1) track(editionId, itemId, "source");
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** Expandable "Detailed analysis" block. */
 export function Analysis({ children }: { children: React.ReactNode }) {

@@ -201,7 +201,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
         run.status = "completed";
         run.finishedAt = new Date().toISOString();
         // Intermediate state is large and no longer needed once the edition exists.
-        run.state = { interest: run.state.interest, queriesRun: run.state.queriesRun, providers: run.state.providers };
+        run.state = { interest: run.state.interest, queriesRun: run.state.queriesRun, providers: run.state.providers, semantic: run.state.semantic };
       }
     }
     await save();

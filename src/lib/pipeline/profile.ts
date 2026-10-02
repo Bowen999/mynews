@@ -1,14 +1,17 @@
 import { z } from "zod";
-import { config } from "../config";
 import { completeJSON } from "../llm/json";
-import { resolveAuthor } from "../search/openalex";
+import { getEmbedder } from "../embed";
 import { CATEGORIES, isCategory, type Category, type InterestProfile, type SearchQuery } from "../types";
 import { isoDay } from "../util/dates";
 import { clamp, hasCJK, sha1, truncate, uniq, uniqBy } from "../util/text";
 import type { StageContext, StageResult } from "./context";
+import { resolveIdentity } from "./identity";
 import { PROFILE_SYSTEM, profilePrompt } from "./prompts";
+import { ensurePrototypes } from "./semantic";
 
-const PROFILE_VERSION = 3;
+const PROFILE_VERSION = 4;
+/** Re-resolve the scholarly identity at least this often (new papers, new co-authors). */
+const IDENTITY_MAX_AGE_DAYS = 14;
 const REUSE_MAX_AGE_DAYS = 14;
 
 const str = z.string().catch("");
@@ -149,7 +152,7 @@ export function normalizeProfile(
   return profile;
 }
 
-/** Stage 2: build or update the interest profile, then resolve the OpenAlex author for citation tracking. */
+/** Stage 2: build or update the interest profile, resolve the scholarly identity, and embed the profile for semantic ranking. */
 export async function profileStage(ctx: StageContext): Promise<StageResult> {
   const { profile, store } = ctx;
   const prefs = profile.preferences;
@@ -161,7 +164,7 @@ export async function profileStage(ctx: StageContext): Promise<StageResult> {
     JSON.stringify({
       v: PROFILE_VERSION,
       sources: snapshots.map((s) => [s.url, s.hash]).sort(),
-      prefs: { pinned: prefs.pinnedTopics, muted: prefs.mutedTopics, notes: prefs.notes, enabled, author: prefs.openalexAuthorId },
+      prefs: { pinned: prefs.pinnedTopics, muted: prefs.mutedTopics, notes: prefs.notes, enabled, author: prefs.semanticScholarAuthorId },
       feedback: feedback.map((f) => [f.itemId, f.signal]),
     }),
   );
@@ -213,28 +216,44 @@ export async function profileStage(ctx: StageContext): Promise<StageResult> {
       previousVersion: previous?.version,
     });
     interest.scholar = previous?.scholar;
+    interest.prototypes = previous?.prototypes;
     ctx.log("info", `Interest profile v${interest.version}: ${interest.topics.length} topics, ${interest.queries.length} queries.`);
   }
 
-  // OpenAlex author resolution (enables "cites your work" and co-author tracking).
-  const forcedChanged = Boolean(prefs.openalexAuthorId && interest.scholar?.openalexAuthorId !== prefs.openalexAuthorId);
-  const needsResolve = enabled.includes("paper") && (!interest.scholar || forcedChanged || !ctx.run.state.profileReused);
-  if (needsResolve && !config.mockMode && !ctx.deadline.expired(60000)) {
+  // Scholarly identity (Semantic Scholar + Google Scholar): enables "cites your work", co-author and recommendation searches.
+  const scholar = interest.scholar;
+  const identityAge = scholar?.resolvedAt ? (Date.now() - new Date(scholar.resolvedAt).getTime()) / 86400000 : Infinity;
+  const forcedChanged = Boolean(prefs.semanticScholarAuthorId && scholar?.s2AuthorId !== prefs.semanticScholarAuthorId);
+  const needsResolve =
+    enabled.includes("paper") && (!scholar?.resolvedAt || forcedChanged || !ctx.run.state.profileReused || identityAge > IDENTITY_MAX_AGE_DAYS);
+  if (needsResolve && !ctx.deadline.expired(60000)) {
     await ctx.detail("Matching you to your publication record");
     const hints = snapshots.map((s) => s.hints ?? {});
+    interest.scholar = await resolveIdentity({
+      forcedS2Id: prefs.semanticScholarAuthorId,
+      name: interest.person.name ?? hints.find((h) => h.scholarName)?.scholarName,
+      affiliations: [...(interest.person.affiliations ?? []), ...hints.map((h) => h.scholarAffiliation ?? "").filter(Boolean)],
+      hints,
+      deadlineAt: ctx.deadline.at(45000),
+    });
+    const s = interest.scholar;
+    if (s.note) ctx.log("warn", s.note);
+    const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+    if (s.s2AuthorId) {
+      ctx.log("info", `Matched Semantic Scholar author ${s.displayName ?? s.s2AuthorId} (${s.confidence} confidence, ${n(s.paperIds?.length ?? 0, "paper")}, ${n(s.coauthorIds?.length ?? 0, "co-author")}).`);
+    }
+    if (s.citesIds?.length) ctx.log("info", `Tracking new Google Scholar citations of ${s.citesIds.length} of your most-cited papers.`);
+  }
+
+  // Embed topics, own papers, watch terms and muted topics once; reused until they change.
+  const embedder = getEmbedder();
+  if (embedder && !ctx.deadline.expired(30000)) {
     try {
-      const res = await resolveAuthor({
-        forcedId: prefs.openalexAuthorId,
-        orcid: hints.find((h) => h.orcid)?.orcid,
-        name: interest.person.name ?? hints.find((h) => h.scholarName)?.scholarName,
-        affiliations: [...(interest.person.affiliations ?? []), ...hints.map((h) => h.scholarAffiliation ?? "").filter(Boolean)],
-        paperTitles: hints.flatMap((h) => h.paperTitles ?? []),
-      });
-      interest.scholar = res;
-      if (res.note) ctx.log("warn", res.note);
-      else if (res.openalexAuthorId) ctx.log("info", `Matched OpenAlex author ${res.displayName} (${res.confidence} confidence).`);
+      if (await ensurePrototypes(interest, prefs, embedder)) {
+        ctx.log("info", `Embedded ${interest.prototypes?.items.length ?? 0} profile prototypes with ${embedder.model} for semantic ranking.`);
+      }
     } catch (e) {
-      ctx.log("warn", `OpenAlex author lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+      ctx.log("warn", `Embedding the profile failed (${e instanceof Error ? e.message : String(e)}); ranking falls back to keywords.`);
     }
   }
 

@@ -1,7 +1,14 @@
 import type { Category, DateSource, Lang } from "../types";
 import type { Window } from "../util/dates";
 
-export type TaskKind = "web" | "news" | "openalex" | "arxiv";
+export type TaskKind = "web" | "news" | "s2" | "europepmc" | "arxiv" | "scholar" | "feed";
+
+/** What a Semantic Scholar task fetches. */
+export type S2Request =
+  | { mode: "search" }
+  | { mode: "author"; authorId: string }
+  | { mode: "citations"; paperId: string }
+  | { mode: "recommend"; positive: string[]; negative: string[] };
 
 export interface SearchTask {
   id: string;
@@ -10,8 +17,12 @@ export interface SearchTask {
   query: string;
   lang: Lang;
   includeDomains?: string[];
-  /** OpenAlex filter expression (without the date filter, which is added automatically). */
-  openalexFilter?: string;
+  /** Semantic Scholar request (defaults to keyword search). */
+  s2?: S2Request;
+  /** Google Scholar: list papers citing this citation cluster id instead of searching. */
+  scholarCites?: string;
+  /** Watchlist RSS/Atom feed to read. */
+  feedUrl?: string;
   /** Personal signal attached to every result of this task (e.g. "cites-your-work"). */
   signal?: string;
   priority: number;
@@ -32,6 +43,8 @@ export interface RawResult {
   imageUrl?: string;
   signals?: string[];
   lang?: Lang;
+  /** Semantic Scholar paper id, when known. */
+  paperId?: string;
 }
 
 export interface SearchContext {
@@ -41,6 +54,8 @@ export interface SearchContext {
 
 export interface SearchProvider {
   readonly name: string;
+  /** Minimum spacing between requests to this provider (rate limits), applied outside MOCK_MODE. */
+  readonly minIntervalMs?: number;
   search(task: SearchTask, ctx: SearchContext): Promise<RawResult[]>;
 }
 
@@ -50,6 +65,7 @@ export class ProviderError extends Error {
     message: string,
     /** Auth/quota failures disable the provider for the rest of the run. */
     readonly fatal = false,
+    readonly status?: number,
   ) {
     super(`${provider}: ${message}`);
     this.name = "ProviderError";
@@ -74,7 +90,7 @@ export async function httpJson<T>(
   const text = await res.text();
   if (!res.ok) {
     const fatal = res.status === 401 || res.status === 402 || res.status === 403 || res.status === 432 || res.status === 433;
-    throw new ProviderError(provider, `HTTP ${res.status} ${text.slice(0, 200)}`, fatal);
+    throw new ProviderError(provider, `HTTP ${res.status} ${text.slice(0, 200)}`, fatal, res.status);
   }
   try {
     return JSON.parse(text) as T;
@@ -99,7 +115,7 @@ export async function httpText(
   } catch (e) {
     throw new ProviderError(provider, e instanceof Error ? e.message : String(e));
   }
-  if (!res.ok) throw new ProviderError(provider, `HTTP ${res.status}`, res.status === 403 || res.status === 429);
+  if (!res.ok) throw new ProviderError(provider, `HTTP ${res.status}`, res.status === 403 || res.status === 429, res.status);
   return res.text();
 }
 

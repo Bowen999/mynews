@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Edition, EditionSummary, Feedback, Profile, Run, RunSummary, SourceSnapshot } from "../types";
+import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
 import { summarizeEdition, type Store } from "./types";
 
 type Row = Record<string, unknown>;
@@ -11,7 +11,7 @@ export function describeSupabaseError(what: string, error: { message?: string; c
     return `Supabase ${what}: got a web page instead of API data, so SUPABASE_URL is wrong. Use the Project URL (https://<project-ref>.supabase.co) from Project Settings → API, not the dashboard link.`;
   }
   if (error.code === "42P01" || error.code === "PGRST205" || /does not exist|could not find the table/i.test(msg)) {
-    return `Supabase ${what}: tables are missing. Run supabase/migrations/0001_init.sql in the Supabase SQL editor.`;
+    return `Supabase ${what}: tables are missing. Run the SQL files in supabase/migrations/ (in order) in the Supabase SQL editor.`;
   }
   if (error.code === "42501" || /permission denied|row-level security/i.test(msg)) {
     return `Supabase ${what}: permission denied. SUPABASE_SERVICE_ROLE_KEY must be the service_role / secret key, not the anon or publishable key.`;
@@ -301,5 +301,40 @@ export class SupabaseStore implements Store {
   async feedbackForEdition(editionId: string) {
     const data = check(await this.db.from("feedback").select("*").eq("edition_id", editionId), "feedbackForEdition");
     return (data ?? []).map(rowToFeedback);
+  }
+
+  async addInteraction(i: Interaction) {
+    check(
+      await this.db.from("interactions").upsert(
+        {
+          id: i.id,
+          profile_id: i.profileId,
+          edition_id: i.editionId,
+          item_id: i.itemId,
+          category: i.category,
+          kind: i.kind,
+          created_at: i.createdAt,
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      ),
+      "addInteraction",
+    );
+  }
+  async listInteractions(profileId: string, limit: number) {
+    const data = check(
+      await this.db.from("interactions").select("*").eq("profile_id", profileId).order("created_at", { ascending: false }).limit(limit),
+      "listInteractions",
+    );
+    return (data ?? []).map(
+      (r: Row): Interaction => ({
+        id: r.id as string,
+        profileId: r.profile_id as string,
+        editionId: r.edition_id as string,
+        itemId: r.item_id as string,
+        category: r.category as Interaction["category"],
+        kind: r.kind as Interaction["kind"],
+        createdAt: r.created_at as string,
+      }),
+    );
   }
 }

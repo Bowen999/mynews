@@ -67,6 +67,7 @@ export function buildSources(members: Candidate[]): { sources: BriefingSource[];
       publishedAt: c.publishedAt,
       dateSource: c.dateSource,
       provider: c.provider,
+      paperId: c.paperId,
     });
     texts.set(id, [c.title, c.snippet, c.content ?? "", c.publisher ?? "", c.publishedAt ?? "", (c.authors ?? []).join(" "), c.venue ?? ""].join("\n"));
   });
@@ -97,6 +98,7 @@ function fallbackItem(cluster: Cluster, sources: BriefingSource[], members: Cand
     imageUrl: members.find((m) => m.imageUrl)?.imageUrl,
     confidence: "low",
     verification: { checkedClaims: 0, removedClaims: 0, notes: [`Automatic write-up unavailable (${reason}); showing the source excerpt.`] },
+    embedding: cluster.embedding,
   };
 }
 
@@ -175,6 +177,7 @@ export async function synthesizeCluster(ctx: StageContext, cluster: Cluster, mem
     imageUrl: members.find((m) => m.imageUrl && m.url === sources[0].url)?.imageUrl ?? members.find((m) => m.imageUrl)?.imageUrl,
     confidence: out.confidence,
     verification: { checkedClaims: v.report.checked, removedClaims: v.report.removed, notes: v.report.notes.slice(0, 10) },
+    embedding: cluster.embedding,
   };
 }
 

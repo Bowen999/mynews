@@ -1,4 +1,5 @@
 import { config, configurationAdvisories, configurationProblems, webSearchProviders } from "./config";
+import { describeEmbedder } from "./embed";
 import { getStore } from "./store";
 import type { SystemStatus } from "./types";
 
@@ -11,7 +12,13 @@ export function systemStatus(): SystemStatus {
   return {
     llm,
     search: webSearchProviders(),
-    scholarly: ["OpenAlex" + (config.search.openalexKey ? "" : " (keyless budget)"), "arXiv"],
+    scholarly: [
+      "Semantic Scholar" + (config.search.semanticScholarKey ? "" : " (shared keyless limit)"),
+      "Europe PMC",
+      "arXiv",
+      config.search.googleScholar ? "Google Scholar via Jina Reader" + (config.search.jinaKey ? "" : " (keyless, slow)") : "Google Scholar off",
+    ],
+    embeddings: describeEmbedder(),
     storage: getStore().kind,
     ntfyTopic: config.notify.disabled ? "Disabled" : config.notify.topicUrl,
     advisories: configurationAdvisories(),

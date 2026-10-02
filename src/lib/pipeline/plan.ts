@@ -1,4 +1,4 @@
-import { webSearchProviders } from "../config";
+import { config, webSearchProviders } from "../config";
 import type { SearchTask, TaskKind } from "../search/types";
 import type { Category, InterestProfile, Preferences } from "../types";
 import { shortHash, uniqBy } from "../util/text";
@@ -10,20 +10,28 @@ export const DOMAIN_FILTERS: Partial<Record<Category, string[]>> = {
 
 const NEWS_CATEGORIES: Category[] = ["news", "funding", "product", "people"];
 
-const MAX_TASKS = 44;
+const MAX_TASKS = 64;
+
+/** Papers the reader liked or disliked in past editions (Semantic Scholar ids), used to steer recommendations. */
+export interface PersonalSeeds {
+  likedPaperIds: string[];
+  dislikedPaperIds: string[];
+}
 
 function kindFor(category: Category): TaskKind {
   return NEWS_CATEGORIES.includes(category) ? "news" : "web";
 }
 
 function task(kind: TaskKind, category: Category, query: string, lang: "en" | "zh", priority: number, extra: Partial<SearchTask> = {}): SearchTask {
-  return { id: shortHash(`${kind}|${category}|${query}|${extra.openalexFilter ?? ""}`, 10), kind, category, query, lang, priority, ...extra };
+  const key = [kind, category, query, JSON.stringify(extra.s2 ?? ""), extra.scholarCites ?? "", extra.feedUrl ?? ""].join("|");
+  return { id: shortHash(key, 10), kind, category, query, lang, priority, ...extra };
 }
 
 /** Turn the interest profile into concrete, provider-routed search tasks for the 7-day window. */
-export function planSearch(profile: InterestProfile, prefs: Preferences): SearchTask[] {
+export function planSearch(profile: InterestProfile, prefs: Preferences, seeds: PersonalSeeds = { likedPaperIds: [], dislikedPaperIds: [] }): SearchTask[] {
   const enabled = (c: Category) => prefs.categories[c] !== false;
   const hasWebApi = webSearchProviders().length > 0;
+  const scholarOn = config.search.googleScholar;
   const tasks: SearchTask[] = [];
   const topicWeight = (q: string) => {
     const lower = q.toLowerCase();
@@ -31,44 +39,61 @@ export function planSearch(profile: InterestProfile, prefs: Preferences): Search
     return hit?.weight ?? 0.5;
   };
 
+  let paperIndex = 0;
   profile.queries.forEach((q, i) => {
     if (!enabled(q.category)) return;
     const order = 1 - i / Math.max(1, profile.queries.length); // earlier queries matter more
     const priority = topicWeight(q.query) + order * 0.5;
     if (q.category === "paper") {
-      tasks.push(task("openalex", "paper", q.query, q.lang, priority + 0.2));
+      tasks.push(task("s2", "paper", q.query, q.lang, priority + 0.2, { s2: { mode: "search" } }));
+      tasks.push(task("europepmc", "paper", q.query, q.lang, priority + 0.1));
       if (q.lang === "en") tasks.push(task("arxiv", "paper", q.query, "en", priority - 0.1));
-      if (hasWebApi) tasks.push(task("web", "paper", q.query, q.lang, priority - 0.3));
+      if (scholarOn && paperIndex < 3) tasks.push(task("scholar", "paper", q.query, q.lang, priority - 0.2));
+      if (hasWebApi && paperIndex < 4) tasks.push(task("web", "paper", q.query, q.lang, priority - 0.3));
+      paperIndex++;
       return;
     }
     tasks.push(task(kindFor(q.category), q.category, q.query, q.lang, priority, { includeDomains: DOMAIN_FILTERS[q.category] }));
   });
 
-  // Personal scholarly signals from OpenAlex (free, high value).
+  // Personal scholarly signals: your new papers, papers citing yours, co-authors' papers, recommendations.
   const s = profile.scholar;
-  if (enabled("paper") && s?.openalexAuthorId && s.confidence !== "low") {
-    if (s.topWorkIds?.length) {
+  if (enabled("paper")) {
+    const trusted = Boolean(s?.s2AuthorId && s.confidence !== "low");
+    if (trusted && s?.s2AuthorId) {
+      tasks.push(task("s2", "paper", "Your new publications", "en", 2.8, { s2: { mode: "author", authorId: s.s2AuthorId }, signal: "your-work" }));
+      for (const paperId of (s.paperIds ?? []).slice(0, 5)) {
+        tasks.push(task("s2", "paper", "New papers citing your work", "en", 3, { s2: { mode: "citations", paperId }, signal: "cites-your-work" }));
+      }
+      for (const authorId of (s.coauthorIds ?? []).slice(0, 6)) {
+        tasks.push(task("s2", "paper", "New work by frequent co-authors", "en", 2.6, { s2: { mode: "author", authorId }, signal: "coauthor" }));
+      }
+    }
+    const positive = [...(trusted ? (s?.paperIds ?? []).slice(0, 12) : []), ...seeds.likedPaperIds].slice(0, 30);
+    if (positive.length) {
       tasks.push(
-        task("openalex", "paper", "New papers citing your work", "en", 3, {
-          openalexFilter: `cites:${s.topWorkIds.slice(0, 40).join("|")}`,
-          signal: "cites-your-work",
+        task("s2", "paper", "Recommended from your papers and likes", "en", 2.7, {
+          s2: { mode: "recommend", positive, negative: seeds.dislikedPaperIds.slice(0, 20) },
+          signal: "recommended",
         }),
       );
     }
-    tasks.push(
-      task("openalex", "paper", "Your new publications", "en", 2.8, { openalexFilter: `author.id:${s.openalexAuthorId}`, signal: "your-work" }),
-    );
-    if (s.coauthorIds?.length) {
-      tasks.push(
-        task("openalex", "people", "New work by frequent co-authors", "en", 2.6, {
-          openalexFilter: `author.id:${s.coauthorIds.slice(0, 15).join("|")}`,
-          signal: "coauthor",
-        }),
-      );
+    if (scholarOn) {
+      for (const cites of (s?.citesIds ?? []).slice(0, 3)) {
+        tasks.push(task("scholar", "paper", "New papers citing your work (Google Scholar)", "en", 2.9, { scholarCites: cites, signal: "cites-your-work" }));
+      }
     }
   }
 
-  // Direct mentions of the person and key organizations.
+  // Watchlist: exact names and feeds the reader asked to follow.
+  for (const term of (prefs.watchTerms ?? []).slice(0, 8)) {
+    tasks.push(task("news", "news", `"${term}"`, /[㐀-鿿]/.test(term) ? "zh" : "en", 2.2, { signal: "watchlist" }));
+  }
+  for (const feedUrl of (prefs.watchFeeds ?? []).slice(0, 10)) {
+    tasks.push(task("feed", "other", feedUrl, "en", 2.5, { feedUrl, signal: "watchlist" }));
+  }
+
+  // Direct mentions of the person.
   if (enabled("people") && profile.person.name && profile.person.name.split(/\s+/).length >= 2) {
     tasks.push(task("news", "people", `"${profile.person.name}"`, "en", 2));
   }

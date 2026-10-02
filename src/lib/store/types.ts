@@ -1,4 +1,4 @@
-import type { Edition, EditionSummary, Feedback, Profile, Run, RunSummary, SourceSnapshot } from "../types";
+import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
 
 export interface Store {
   readonly kind: "supabase" | "file";
@@ -34,6 +34,10 @@ export interface Store {
   clearFeedback(editionId: string, itemId: string): Promise<void>;
   listFeedback(profileId: string, limit: number): Promise<Feedback[]>;
   feedbackForEdition(editionId: string): Promise<Feedback[]>;
+
+  /** Implicit feedback (story opened, source clicked). Idempotent per interaction id. */
+  addInteraction(interaction: Interaction): Promise<void>;
+  listInteractions(profileId: string, limit: number): Promise<Interaction[]>;
 }
 
 export function summarizeEdition(e: Edition): EditionSummary {

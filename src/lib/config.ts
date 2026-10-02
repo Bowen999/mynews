@@ -57,15 +57,29 @@ export const config = {
     get jinaKey() {
       return env("JINA_API_KEY");
     },
-    get openalexKey() {
-      return env("OPENALEX_API_KEY");
+    get semanticScholarKey() {
+      return env("SEMANTIC_SCHOLAR_API_KEY") ?? env("S2_API_KEY");
     },
-    get openalexMailto() {
-      return env("OPENALEX_MAILTO");
+    /** Google Scholar is read through Jina Reader; set GOOGLE_SCHOLAR_DISABLED=1 to skip it. */
+    get googleScholar() {
+      return env("GOOGLE_SCHOLAR_DISABLED") !== "1";
     },
     /** Free keyless RSS fallbacks (Bing / Google News). Enabled unless explicitly disabled. */
     get rssFallback() {
       return env("DISABLE_RSS_FALLBACK") !== "1";
+    },
+  },
+  embed: {
+    get model() {
+      return env("JINA_EMBEDDING_MODEL") ?? "jina-embeddings-v3";
+    },
+    /** Matryoshka truncation; 256 keeps stored vectors small with little quality loss. */
+    get dims() {
+      const n = intEnv("JINA_EMBEDDING_DIMS", 256);
+      return n >= 32 && n <= 1024 ? n : 256;
+    },
+    get disabled() {
+      return env("EMBEDDINGS_DISABLED") === "1";
     },
   },
   store: {
@@ -206,11 +220,18 @@ export function configurationAdvisories(): string[] {
   }
   if (!webSearchProviders().length) {
     notes.push(
-      "No web search API key configured (TAVILY_API_KEY recommended). Using free sources only (OpenAlex, arXiv, news RSS), so WeChat, patents, jobs and events coverage will be limited.",
+      "No web search API key configured (TAVILY_API_KEY recommended). Using free sources only (Semantic Scholar, Europe PMC, arXiv, Google Scholar, news RSS), so WeChat, patents, jobs and events coverage will be limited.",
     );
   }
-  if (!config.search.openalexKey) {
-    notes.push("Optional: OPENALEX_API_KEY not set. Paper search still works on OpenAlex's small keyless daily budget; a free key (openalex.org/settings/api) makes it more reliable.");
+  if (!config.search.jinaKey) {
+    notes.push(
+      "JINA_API_KEY not set: semantic ranking (embeddings) is off and stories are matched to your profile by keywords only. Google Scholar and page reading also run on Jina's low keyless limit. Get a free key at jina.ai.",
+    );
+  }
+  if (!config.search.semanticScholarKey) {
+    notes.push(
+      "Optional: SEMANTIC_SCHOLAR_API_KEY not set. Semantic Scholar works without a key on a shared, often busy rate limit; a free key (semanticscholar.org/product/api) makes paper search, citation tracking and recommendations reliable.",
+    );
   }
   if (!hasSupabase()) {
     notes.push("Supabase not configured: editions are stored on the local filesystem (.data/). Fine for local use only.");

@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
 import { CATEGORIES, type Category, type ReferenceSource } from "@/lib/types";
 import { newId } from "@/lib/util/text";
-import { isGitHub, normalizeUserUrl } from "@/lib/util/url";
+import { isGitHub, isPublicHttpUrl, normalizeUserUrl } from "@/lib/util/url";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,9 @@ const UpdateSchema = z.object({
       pinnedTopics: tags.optional(),
       mutedTopics: tags.optional(),
       notes: z.string().max(2000).optional(),
-      openalexAuthorId: z.string().trim().max(40).optional(),
+      semanticScholarAuthorId: z.string().trim().max(120).optional(),
+      watchTerms: tags.optional(),
+      watchFeeds: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
       ntfyTopic: z.string().trim().max(120).optional(),
     })
     .optional(),
@@ -61,8 +63,18 @@ export async function PUT(req: Request) {
         if ((CATEGORIES as readonly string[]).includes(k)) categories[k as Category] = v;
       }
       if (!Object.values(categories).some(Boolean)) throw new HttpError(400, "Enable at least one category.");
-      const authorId = preferences.openalexAuthorId?.replace(/^https?:\/\/openalex\.org\//i, "");
-      if (authorId && !/^A\d+$/i.test(authorId)) throw new HttpError(400, "OpenAlex author IDs look like A5023888391.");
+      // Accept a bare id or a Semantic Scholar author page link (…/author/Name/1234567).
+      const authorId = preferences.semanticScholarAuthorId?.match(/(\d{3,})\/?$/)?.[1];
+      if (preferences.semanticScholarAuthorId && !authorId) {
+        throw new HttpError(400, "Semantic Scholar author IDs are numbers, e.g. 1741101, or paste your semanticscholar.org/author/… link.");
+      }
+      const watchFeeds: string[] = [];
+      for (const raw of preferences.watchFeeds ?? profile.preferences.watchFeeds ?? []) {
+        const url = normalizeUserUrl(raw);
+        if (!url || !isPublicHttpUrl(url)) throw new HttpError(400, `Not a valid public feed URL: ${raw}`);
+        if (isGitHub(url)) throw new HttpError(400, "GitHub feeds are excluded from this app.");
+        if (!watchFeeds.includes(url)) watchFeeds.push(url);
+      }
       let ntfyTopic = profile.preferences.ntfyTopic;
       if (preferences.ntfyTopic !== undefined) {
         if (preferences.ntfyTopic && !topicUrl(preferences.ntfyTopic)) {
@@ -73,7 +85,9 @@ export async function PUT(req: Request) {
       profile.preferences = {
         ...profile.preferences,
         ...preferences,
-        openalexAuthorId: preferences.openalexAuthorId === undefined ? profile.preferences.openalexAuthorId : authorId?.toUpperCase() || undefined,
+        semanticScholarAuthorId: preferences.semanticScholarAuthorId === undefined ? profile.preferences.semanticScholarAuthorId : authorId,
+        watchTerms: preferences.watchTerms ?? profile.preferences.watchTerms ?? [],
+        watchFeeds,
         ntfyTopic,
         categories,
       };

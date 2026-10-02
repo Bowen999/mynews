@@ -90,7 +90,7 @@ Exclusions: ${input.profile.exclusions.join("; ") || "none"}
 Stories already covered in recent editions (treat repeats as low novelty unless there is a genuinely new development):
 ${input.previouslyCovered.map((t) => `- ${t}`).join("\n") || "none"}
 
-Candidates (id | category hint | date | source | signals | title — snippet):
+Candidates (id | category hint | date | source | signals | match | title — snippet):
 ${input.candidates}
 
 Task:
@@ -104,7 +104,8 @@ Task:
    - credibility: 0-10, reliability of the sources shown
    - value: 0-10, practical value to this reader (could they act on it, cite it, apply, attend, contact?)
    - rationale: one sentence explaining the scores, referring to the reader's interests
-Signals: "cites-your-work" = the paper cites the reader's publications; "coauthor" = written by a frequent co-author; "your-work" = the reader's own new publication. These are usually high value.
+Signals: "cites-your-work" = the paper cites the reader's publications; "coauthor" = written by a frequent co-author; "your-work" = the reader's own new publication; "watchlist" = from a name or feed the reader asked to follow. These are usually high value. "recommended" = suggested by Semantic Scholar from the reader's papers and likes.
+Match: semantic similarity (0-1) between the item and the reader's profile, computed from embeddings ("-" if unavailable). Use it as a hint, not a verdict.
 
 Return JSON: {"clusters":[{"ids":["c1","c7"],"category":"news","label":"","relevance":0,"impact":0,"novelty":0,"credibility":0,"value":0,"rationale":""}]}`;
 }

@@ -13,7 +13,13 @@ export default async function Archive() {
   const user = await requirePageUser("/editions");
   const store = getStore();
   const profile = await profileForUser(user, store);
-  const [editions, runs] = await Promise.all([store.listEditions(profile.id, 200), store.listRuns(profile.id, 10)]);
+  const [editions, runs, interactions] = await Promise.all([
+    store.listEditions(profile.id, 200),
+    store.listRuns(profile.id, 10),
+    store.listInteractions(profile.id, 2000).catch(() => []),
+  ]);
+  const read = new Map<string, Set<string>>();
+  for (const i of interactions) if (i.kind === "open") read.set(i.editionId, (read.get(i.editionId) ?? new Set()).add(i.itemId));
   const unfinished = runs.filter((r) => r.status !== "completed");
 
   return (
@@ -60,7 +66,9 @@ export default async function Archive() {
                 <span className="h">
                   <span className="title-m">{e.headline}</span>
                   <div className="meta">
-                    {formatRange(e.windowStart, e.windowEnd)} · {e.itemCount} stories{e.sample ? " · sample data" : ""}
+                    {formatRange(e.windowStart, e.windowEnd)} · {e.itemCount} stories
+                    {read.get(e.id)?.size ? ` · ${read.get(e.id)!.size} read` : ""}
+                    {e.sample ? " · sample data" : ""}
                   </div>
                 </span>
                 <span className="c">{e.topCategories.slice(0, 3).map((c) => CATEGORY_META[c]?.short ?? c).join(" / ")}</span>

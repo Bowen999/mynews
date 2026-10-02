@@ -5,6 +5,7 @@ import { hasSupabaseAuth } from "@/lib/config";
 import { checkQuota } from "@/lib/quota";
 import { requirePageUser } from "@/lib/session";
 import { systemStatus } from "@/lib/status";
+import { readingSummary } from "@/lib/pipeline/semantic";
 import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export default async function ProfilePage() {
   const store = getStore();
   const profile = await profileForUser(user, store);
   const quota = await checkQuota(user, profile, store);
+  const reading = await readingSummary(store, profile.id);
+
   return (
     <div className="wrap">
       <header className="page-head">
@@ -27,6 +30,7 @@ export default async function ProfilePage() {
         status={user.isAdmin ? systemStatus() : null}
         usage={{ used: quota.used, limit: quota.limit, nextSlotAt: quota.nextSlotAt }}
         account={{ email: user.email, isAdmin: user.isAdmin, authKind: hasSupabaseAuth() ? "supabase" : "local" }}
+        reading={reading}
       />
     </div>
   );
