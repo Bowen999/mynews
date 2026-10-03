@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ownedEdition } from "@/lib/accounts";
 import { HttpError } from "@/lib/auth";
 import { EditionIndex } from "@/components/EditionIndex";
+import { Page } from "@/components/PageTransition";
 import { currentUser, requirePageUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +34,8 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const edition = await load(id);
   return (
-    <div className="wrap">
+    <Page>
       <EditionIndex edition={edition} />
-    </div>
+    </Page>
   );
 }

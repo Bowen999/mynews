@@ -1,8 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { providerLabel } from "@/lib/auth/providers";
 import { CATEGORIES, CATEGORY_META, type Category, type Profile } from "@/lib/types";
+import { setUnsavedChanges } from "@/lib/unsaved";
+import { isGitHub, normalizeUserUrl } from "@/lib/util/url";
+import { CheckIcon, EyeIcon, EyeOffIcon } from "./Icons";
+import { toast } from "./Toast";
 
 export interface UsageInfo {
   used: number;
@@ -23,6 +29,57 @@ export interface AccountInfo {
   email: string;
   isAdmin: boolean;
   authKind: "supabase" | "local";
+  /** Sign-in methods: "email", "github", "google". */
+  providers: string[];
+}
+
+const MAX_SOURCES = 12;
+
+/** Why a reference URL can't be added, mirroring the checks the server makes on save. */
+function sourceProblem(input: string, sources: Profile["sources"]): string | null {
+  const url = normalizeUserUrl(input);
+  if (!url || /\s/.test(input.trim()) || !/\.[a-z0-9-]{2,}$/i.test(new URL(url).hostname)) {
+    return "Enter a web address, such as https://scholar.google.com/citations?user=…";
+  }
+  if (isGitHub(url)) return "GitHub pages are excluded. Add another page about you.";
+  if (sources.some((s) => normalizeUserUrl(s.url) === url)) return "This page is already in your sources.";
+  if (sources.length >= MAX_SOURCES) return `You can add up to ${MAX_SOURCES} sources.`;
+  return null;
+}
+
+/**
+ * Ask before unsaved edits are lost: closing or reloading the tab, following a link in the app, or
+ * starting a generation (see confirmUnsaved).
+ */
+function useLeaveGuard(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const description = "You have unsaved changes on your profile.";
+    setUnsavedChanges(description);
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    // Window capture runs before the router's link handling, so a cancelled click never navigates.
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]");
+      if (!(a instanceof HTMLAnchorElement) || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.search === window.location.search)) return;
+      if (!window.confirm(`${description} Leave without saving?`)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("click", onClick, true);
+    return () => {
+      setUnsavedChanges(null);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("click", onClick, true);
+    };
+  }, [active]);
 }
 
 function withScheme(url: string): string {
@@ -91,32 +148,69 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-function PasswordChange() {
+function PasswordChange({ hasPassword }: { hasPassword: boolean }) {
   const [pw, setPw] = useState("");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
-    setMsg(null);
-    const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (res.ok) {
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not update the password.");
       setPw("");
-      setMsg({ ok: true, text: "Password updated." });
-    } else setMsg({ ok: false, text: data.error ?? "Could not update the password." });
+      setVisible(false);
+      toast.success(hasPassword ? "Password updated." : "Password saved. You can also sign in with your email and this password.");
+    } catch (e) {
+      setError(e instanceof TypeError ? "Could not reach the server. Check your connection and try again." : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <label className="field">
-      <span>New password</span>
-      <div className="row">
-        <input className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} minLength={8} />
-        <button type="button" className="btn" onClick={save} disabled={pw.length < 8 || busy}>
-          Change password
+    <div className="field">
+      <label className="field-label" htmlFor="new-password">
+        {hasPassword ? "New password" : "Password"}
+      </label>
+      <form
+        className="row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (pw.length >= 8 && !busy) void save();
+        }}
+      >
+        <div className="password" style={{ flex: 1, minWidth: 180 }}>
+          <input
+            id="new-password"
+            className="input"
+            type={visible ? "text" : "password"}
+            autoComplete="new-password"
+            value={pw}
+            onChange={(e) => {
+              setPw(e.target.value);
+              setError(null);
+            }}
+            minLength={8}
+            aria-invalid={Boolean(error)}
+          />
+          <button type="button" className="reveal" aria-label={visible ? "Hide password" : "Show password"} aria-pressed={visible} onClick={() => setVisible((v) => !v)}>
+            {visible ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
+        <button type="submit" className="btn" disabled={pw.length < 8 || busy} aria-busy={busy}>
+          {busy && <span className="spinner" />} {hasPassword ? "Change password" : "Save password"}
         </button>
-      </div>
-      {msg && <p className={msg.ok ? "form-ok" : "form-error"}>{msg.text}</p>}
-    </label>
+      </form>
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <small>{hasPassword ? "At least 8 characters." : "Optional: set one to also sign in with your email. At least 8 characters."}</small>
+      )}
+    </div>
   );
 }
 
@@ -136,13 +230,35 @@ export function ProfileEditor({
   const [saved, setSaved] = useState(initial);
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const saveRef = useRef<() => void>(() => undefined);
 
   const dirty = useMemo(
     () => JSON.stringify({ s: profile.sources, p: profile.preferences }) !== JSON.stringify({ s: saved.sources, p: saved.preferences }),
     [profile, saved],
   );
+  useLeaveGuard(dirty);
+
+  // The confirmation fades after a few seconds; errors stay until the next edit.
+  useEffect(() => {
+    if (message?.kind !== "ok") return;
+    const t = window.setTimeout(() => setMessage(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [message]);
+
+  // Ctrl/⌘ + S saves.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const prefs = profile.preferences;
   const setPrefs = (patch: Partial<typeof prefs>) => {
@@ -153,6 +269,11 @@ export function ProfileEditor({
   const addSource = () => {
     const v = url.trim();
     if (!v) return;
+    const problem = sourceProblem(v, profile.sources);
+    if (problem) {
+      setUrlError(problem);
+      return;
+    }
     setMessage(null);
     setProfile({
       ...profile,
@@ -162,7 +283,29 @@ export function ProfileEditor({
     setLabel("");
   };
 
+  const removeSource = (source: Profile["sources"][number]) => {
+    const index = profile.sources.findIndex((x) => x.id === source.id);
+    setMessage(null);
+    setProfile((p) => ({ ...p, sources: p.sources.filter((x) => x.id !== source.id) }));
+    toast(`Removed ${source.label || hostOf(source.url)}. Save to apply.`, {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setProfile((p) => (p.sources.some((x) => x.id === source.id) ? p : { ...p, sources: [...p.sources.slice(0, index), source, ...p.sources.slice(index)] })),
+      },
+    });
+  };
+
+  const discard = () => {
+    const edited = profile;
+    setProfile(saved);
+    setMessage(null);
+    setUrlError(null);
+    toast("Changes discarded.", { action: { label: "Undo", onClick: () => setProfile(edited) } });
+  };
+
   const save = async () => {
+    if (!dirty || saving) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -174,18 +317,21 @@ export function ProfileEditor({
           preferences: { ...prefs, semanticScholarAuthorId: prefs.semanticScholarAuthorId ?? "", ntfyTopic: prefs.ntfyTopic ?? "" },
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Save failed. Try again.");
       setProfile(data.profile);
       setSaved(data.profile);
       setMessage({ kind: "ok", text: "Saved. Your interest profile updates on the next generation." });
       router.refresh();
     } catch (e) {
-      setMessage({ kind: "error", text: e instanceof Error ? e.message : "Save failed" });
+      setMessage({ kind: "error", text: e instanceof TypeError ? "Could not reach the server. Your changes are still here; try again." : (e as Error).message });
     } finally {
       setSaving(false);
     }
   };
+  useEffect(() => {
+    saveRef.current = () => void save();
+  });
 
   const interest = profile.interest;
 
@@ -205,12 +351,7 @@ export function ProfileEditor({
                     {s.url}
                   </a>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-quiet btn-sm"
-                  aria-label={`Remove ${s.url}`}
-                  onClick={() => setProfile({ ...profile, sources: profile.sources.filter((x) => x.id !== s.id) })}
-                >
+                <button type="button" className="btn btn-quiet btn-sm" aria-label={`Remove ${s.url}`} onClick={() => removeSource(s)}>
                   Remove
                 </button>
               </li>
@@ -228,9 +369,14 @@ export function ProfileEditor({
             inputMode="url"
             placeholder="https://scholar.google.com/citations?user=…"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setUrlError(null);
+            }}
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSource())}
             aria-label="Source URL"
+            aria-invalid={Boolean(urlError)}
+            aria-describedby={urlError ? "source-url-error" : undefined}
           />
           <input
             className="input"
@@ -241,10 +387,21 @@ export function ProfileEditor({
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSource())}
             aria-label="Source label"
           />
-          <button type="button" className="btn" onClick={addSource} disabled={!url.trim() || profile.sources.length >= 12}>
+          <button type="button" className="btn" onClick={addSource} disabled={!url.trim() || profile.sources.length >= MAX_SOURCES}>
             Add source
           </button>
         </div>
+        {urlError ? (
+          <p className="form-error" id="source-url-error" role="alert">
+            {urlError}
+          </p>
+        ) : (
+          <p className="form-ok">
+            {profile.sources.length >= MAX_SOURCES
+              ? `That’s the maximum of ${MAX_SOURCES} sources. Remove one to add another.`
+              : `${profile.sources.length} of ${MAX_SOURCES} sources. Press Enter to add.`}
+          </p>
+        )}
       </Section>
 
       <Section title="Preferences" hint="What the briefing covers and how it reads. Story feedback (“more / less like this”) is applied automatically.">
@@ -338,11 +495,18 @@ export function ProfileEditor({
         </label>
       </Section>
 
-      <div className="save-bar">
-        {message && <span className={message.kind === "error" ? "form-error" : "form-ok"}>{message.text}</span>}
-        {!message && dirty && <span>Unsaved changes</span>}
-        <button type="button" className="btn btn-solid" onClick={save} disabled={!dirty || saving}>
-          {saving && <span className="spinner" />} Save changes
+      <div className="save-bar" data-dirty={dirty || undefined}>
+        <span className={message?.kind === "error" ? "form-error" : message ? "form-saved" : undefined} role="status" aria-live="polite">
+          {message?.kind === "ok" && <CheckIcon size={15} />}
+          {message ? message.text : saving ? "Saving…" : dirty ? "Unsaved changes" : ""}
+        </span>
+        {dirty && !saving && (
+          <button type="button" className="btn btn-quiet" onClick={discard}>
+            Discard
+          </button>
+        )}
+        <button type="button" className="btn btn-solid" onClick={save} disabled={!dirty || saving} aria-busy={saving} title="Save (Ctrl/⌘ S)">
+          {saving && <span className="spinner" />} {saving ? "Saving…" : "Save changes"}
         </button>
       </div>
 
@@ -461,18 +625,20 @@ export function ProfileEditor({
             {account.email}
             {account.isAdmin ? " · admin" : ""}
           </dd>
+          <dt>Sign-in methods</dt>
+          <dd>{(account.providers.length ? account.providers : ["email"]).map(providerLabel).join(" · ")}</dd>
           {account.isAdmin && (
             <>
               <dt>Admin</dt>
               <dd>
-                <a className="link" href="/admin">
+                <Link className="link" href="/admin">
                   System status, keys and usage
-                </a>
+                </Link>
               </dd>
             </>
           )}
         </dl>
-        <PasswordChange />
+        <PasswordChange hasPassword={account.providers.length === 0 || account.providers.includes("email")} />
       </Section>
 
     </>

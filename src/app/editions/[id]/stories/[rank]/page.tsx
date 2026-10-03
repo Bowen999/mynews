@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ownedEdition } from "@/lib/accounts";
 import { HttpError } from "@/lib/auth";
+import { Page } from "@/components/PageTransition";
 import { StoryArticle } from "@/components/StoryArticle";
 import { currentUser, requirePageUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
@@ -36,8 +37,8 @@ export default async function StoryPage({ params }: Params) {
   if (!item) notFound();
   const fb = (await getStore().feedbackForEdition(edition.id)).find((f) => f.itemId === item.id);
   return (
-    <div className="wrap">
+    <Page>
       <StoryArticle edition={edition} item={item} feedback={fb?.signal} />
-    </div>
+    </Page>
   );
 }

@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { Page } from "@/components/PageTransition";
 
 export default function NotFound() {
   return (
-    <div className="wrap">
+    <Page>
       <section className="hero">
         <div className="label">404</div>
         <h1 className="display" style={{ marginTop: 24 }}>
@@ -15,6 +16,6 @@ export default function NotFound() {
           </Link>
         </div>
       </section>
-    </div>
+    </Page>
   );
 }

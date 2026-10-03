@@ -730,7 +730,7 @@ select {
   border-top: 0;
 }
 
-.index a.row {
+.index .row {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: clamp(16px, 2.2vw, 32px);
@@ -1254,7 +1254,8 @@ sup.cite + sup.cite::before {
   border-bottom: 1px solid var(--hair);
 }
 
-.issues a {
+.issues a,
+.issues .row {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: clamp(16px, 2.2vw, 32px);
@@ -1900,13 +1901,13 @@ dialog.modal[open] {
   .nav a {
     font-size: 14px;
   }
-  .header-actions .btn-solid {
+  .header-actions .btn-generate {
     width: 38px;
     height: 38px;
     padding: 0;
   }
-  .header-actions .btn-solid .label-full,
-  .header-actions .btn-solid .label-short {
+  .header-actions .btn-generate .label-full,
+  .header-actions .btn-generate .label-short {
     display: none;
   }
   .lead .text,
@@ -1916,7 +1917,7 @@ dialog.modal[open] {
   .lead .side {
     margin-top: 24px;
   }
-  .index a.row {
+  .index .row {
     row-gap: 10px;
   }
   .index .n {
@@ -2101,5 +2102,581 @@ dialog.modal[open] {
 @media (max-width: 680px) {
   .kv.keys {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Feedback: navigation progress ---------- */
+
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 2px;
+  z-index: 100;
+  pointer-events: none;
+  view-transition-name: nav-progress;
+}
+
+.nav-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent, var(--ink));
+  transform-origin: 0 50%;
+  transition: transform 0.22s ease-out;
+}
+
+.nav-progress[data-state="done"] span {
+  opacity: 0;
+  transition: transform 0.18s ease-out, opacity 0.25s 0.18s;
+}
+
+/* ---------- Feedback: toasts ---------- */
+
+.toasts {
+  position: fixed;
+  z-index: 90;
+  left: var(--gutter);
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: min(420px, calc(100vw - 2 * var(--gutter)));
+  pointer-events: none;
+  view-transition-name: toasts;
+}
+
+body:has(.save-bar) .toasts {
+  bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
+.toasts ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.toasts ol + ol:not(:empty) {
+  margin-top: 8px;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 8px 8px 16px;
+  background: var(--invert-bg);
+  color: var(--invert-ink);
+  font-size: 14px;
+  line-height: 1.4;
+  animation: toast-in 0.28s var(--ease) both;
+}
+
+.toast[data-leaving] {
+  animation: toast-out 0.18s ease-in both;
+}
+
+.toast-error {
+  border-left: 3px solid var(--danger);
+  padding-left: 13px;
+}
+
+.toast-icon {
+  display: grid;
+  flex: none;
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.toast-action,
+.toast-close {
+  flex: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.toast-action {
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.toast-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+.toast :focus-visible {
+  outline-color: var(--invert-ink);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (max-width: 680px) {
+  .toasts {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---------- Loading skeletons ---------- */
+
+.skeleton {
+  animation: skeleton-in 0.15s ease-out both;
+}
+
+.bone {
+  display: block;
+  max-width: 100%;
+  background: var(--wash);
+  animation: bone-pulse 1.6s ease-in-out infinite;
+}
+
+.bone-line {
+  height: 0.72em;
+  margin-block: 0.28em;
+  margin-block: calc((1lh - 0.72em) / 2);
+}
+
+.skeleton .masthead .sk-facts {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.skeleton .sk-right {
+  margin-left: auto;
+}
+
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes bone-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ---------- Page transitions (React <ViewTransition>, see PageTransition.tsx) ---------- */
+
+/* Clicks pass through to the new page while an animation runs. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* The header, progress bar and toasts stay above the page while it changes beneath them. The header
+   crossfades in place (it only looks different on the front page); the overlays don't animate. */
+.site-header {
+  view-transition-name: site-header;
+}
+
+::view-transition-group(site-header),
+::view-transition-group(nav-progress),
+::view-transition-group(toasts) {
+  z-index: 100;
+}
+
+::view-transition-group(nav-progress),
+::view-transition-group(toasts),
+::view-transition-new(nav-progress),
+::view-transition-new(toasts) {
+  animation: none;
+}
+
+::view-transition-old(nav-progress),
+::view-transition-old(toasts) {
+  display: none;
+}
+
+/* A plain crossfade: when a loading skeleton gives way to the page, the headings they share stay put. */
+::view-transition-old(.page-exit) {
+  animation: vt-fade-out 0.14s ease-in both;
+}
+
+::view-transition-new(.page-enter) {
+  animation: vt-fade-in 0.22s ease-out 0.04s both;
+}
+
+::view-transition-old(.slide-forward) {
+  animation:
+    vt-fade-out 0.16s ease-in both,
+    vt-to-left 0.34s var(--ease) both;
+}
+
+::view-transition-new(.slide-forward) {
+  animation:
+    vt-fade-in 0.22s ease-out 0.1s both,
+    vt-from-right 0.38s var(--ease) both;
+}
+
+::view-transition-old(.slide-back) {
+  animation:
+    vt-fade-out 0.16s ease-in both,
+    vt-to-right 0.34s var(--ease) both;
+}
+
+::view-transition-new(.slide-back) {
+  animation:
+    vt-fade-in 0.22s ease-out 0.1s both,
+    vt-from-left 0.38s var(--ease) both;
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-to-left {
+  to {
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes vt-from-right {
+  from {
+    transform: translateX(40px);
+  }
+}
+
+@keyframes vt-to-right {
+  to {
+    transform: translateX(40px);
+  }
+}
+
+@keyframes vt-from-left {
+  from {
+    transform: translateX(-40px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+.account-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+}
+
+.account-menu button[disabled] {
+  cursor: default;
+  color: var(--ink-3);
+}
+
+.feedback[aria-busy="true"] .btn[disabled] {
+  opacity: 1;
+  cursor: progress;
+}
+
+.pager-hint {
+  display: none;
+  margin: 22px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.pager-hint kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--hair);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pager-hint {
+    display: block;
+  }
+}
+
+/* ---------- Generation progress ---------- */
+
+.run-meter {
+  height: 2px;
+  margin-top: 26px;
+  background: var(--hair);
+  overflow: hidden;
+}
+
+.run-meter span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform-origin: 0 50%;
+  transition: transform 0.6s var(--ease);
+}
+
+.run-meter.failed span,
+.run-meter.needs_input span {
+  background: var(--danger);
+}
+
+.run-status {
+  margin: 12px 0 28px;
+  font-size: 14px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-status b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  animation: enter 0.3s var(--ease) both;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.run-chip:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.run-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--notice);
+}
+
+@media (max-width: 680px) {
+  .run-chip {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+  .run-chip-text {
+    display: none;
+  }
+}
+
+/* ---------- Sign-in: providers, fields, inline errors ---------- */
+
+.auth-fields {
+  display: grid;
+  gap: 18px;
+}
+
+.oauth {
+  display: grid;
+  gap: 10px;
+}
+
+.btn-oauth {
+  width: 100%;
+  height: 48px;
+  gap: 12px;
+  border-color: var(--ink-3);
+}
+
+.btn-oauth:hover {
+  background: var(--wash);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.btn-oauth[disabled] {
+  background: transparent;
+}
+
+.btn-oauth[aria-busy="true"] {
+  cursor: progress;
+  border-color: var(--ink);
+}
+
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--hair);
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.input[aria-invalid="true"]:focus {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.field .field-error {
+  color: var(--danger);
+}
+
+.field .field-warn {
+  color: var(--notice);
+}
+
+.password {
+  position: relative;
+}
+
+.password .input {
+  padding-right: 48px;
+}
+
+.password .reveal {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.password .reveal:hover {
+  color: var(--ink);
+}
+
+.auth-sent {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.auth-sent b {
+  color: var(--ink);
+  font-family: var(--sans);
+  font-weight: 600;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(--ink-3);
+}
+
+.link-button:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* ---------- Profile: save bar and source hints ---------- */
+
+.save-bar .form-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  animation: enter 0.3s var(--ease) both;
+}
+
+.save-bar[data-dirty] > span:first-child:not(.form-error):not(.form-saved) {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.save-bar > span:first-child {
+  margin-right: auto;
+}
+
+.form-section .fields > .form-ok,
+.form-section .fields > .form-error {
+  margin-top: -12px;
+}
+
+/* Signed-out header on small phones: "Sign up" instead of "Create account". */
+@media (max-width: 400px) {
+  .signup-link .label-full {
+    display: none;
+  }
+  .signup-link .label-short {
+    display: inline;
   }
 }

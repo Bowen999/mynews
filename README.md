@@ -14,9 +14,9 @@ never from the model. Generated claims that can't be matched to a source are rem
 Every run produces an independent **edition** that is kept in the archive. Each edition is also saved as
 a self-contained interactive HTML page that you can open or download.
 
-**Accounts.** Anyone you allow can create an account and get briefings about their own work. Each account has
-its own reference sources, interest profile, editions, feedback and ntfy topic, and nobody can see another account's data.
-Weekly usage limits protect your API credits; admins are exempt.
+**Accounts.** Anyone you allow can create an account and get briefings about their own work, signing in with email and
+password or with GitHub or Google. Each account has its own reference sources, interest profile, editions, feedback and
+ntfy topic, and nobody can see another account's data. Weekly usage limits protect your API credits; admins are exempt.
 
 - **Stack:** Next.js 16 (App Router) · Vercel · Supabase (Postgres) · DeepSeek API · Jina (embeddings + Reader) · Tavily/Exa/Serper/Brave search · Semantic Scholar, Europe PMC, arXiv & Google Scholar · ntfy.sh
 - **No self-managed server:** everything runs as Vercel functions plus a hosted Supabase database.
@@ -81,8 +81,9 @@ ten items cover different ground. Each story says which part of your profile it 
 
 **Serverless-friendly execution.** Each pipeline stage runs as its own request (`POST /api/runs/:id/step`,
 `maxDuration = 300`), and each request keeps an internal 240 s budget. The browser drives the steps and shows
-live progress. State is persisted after every stage, so a closed tab or a failure can be **resumed**
-from the stage that stopped. A database lease prevents two tabs from running the same step twice.
+live progress; it keeps going while you read other pages in the same tab (the header shows the current step, and a
+notification says when the edition is ready). State is persisted after every stage, so a closed tab or a failure can be
+**resumed** from the stage that stopped. A database lease prevents two tabs from running the same step twice.
 
 **Notifications (ntfy).** The app posts to `https://ntfy.sh/lipid-plus` (configurable) when:
 - a task starts;
@@ -105,19 +106,30 @@ It never waits silently: input problems are reported both in the UI and through 
    Both keys are only ever used on the server.
 3. **Supabase Auth** (*Authentication → URL Configuration*):
    - set **Site URL** to your Vercel URL;
-   - add `https://<your-app>/auth/callback` to **Redirect URLs**, so confirmation and password-reset emails land back in the app.
+   - add `https://<your-app>/auth/callback**` to **Redirect URLs**, so confirmation and password-reset emails and GitHub /
+     Google sign-ins land back in the app (the `**` lets the `?next=…` part through).
    Under *Authentication → Sign In / Providers → Email* you can turn **Confirm email** off for frictionless sign-up.
    Supabase's built-in mailer sends only a few emails per hour; add custom SMTP if you expect many users.
-4. **Search and ranking keys:**
+4. **Optional: sign in with GitHub or Google.** Both use `https://<project-ref>.supabase.co/auth/v1/callback` as the
+   callback / redirect URI on the provider's side:
+   - **GitHub:** GitHub → *Settings → Developer settings → OAuth Apps → New OAuth App*. Homepage URL: your app.
+     Copy the client ID and a new client secret into Supabase (*Authentication → Sign In / Providers → GitHub*) and enable it.
+   - **Google:** Google Cloud Console → *APIs & Services*: set up the OAuth consent screen, then *Credentials → Create
+     credentials → OAuth client ID → Web application*, with the callback above as an authorized redirect URI. Paste the
+     client ID and secret into Supabase (*Authentication → Sign In / Providers → Google*) and enable it.
+   The sign-in and sign-up pages show a button for each provider enabled in Supabase (or exactly those in
+   `OAUTH_PROVIDERS`), and the Admin page lists them. The allow-list and `SIGNUPS_DISABLED` apply to them too. Supabase
+   links a GitHub or Google sign-in to an existing account with the same verified email; new accounts start on the Profile page.
+5. **Search and ranking keys:**
    - a [Tavily](https://tavily.com) key (Exa, Serper or Brave also work; you can set several and they are tried in order);
    - a [Jina](https://jina.ai) key, which turns on semantic ranking and raises the Jina Reader limits used for Google Scholar;
    - optionally a free [Semantic Scholar](https://www.semanticscholar.org/product/api) key, which makes citation tracking and recommendations reliable.
-5. **Vercel:** import this GitHub repo and add the environment variables from [`.env.example`](.env.example). The minimum is:
+6. **Vercel:** import this GitHub repo and add the environment variables from [`.env.example`](.env.example). The minimum is:
    `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ADMIN_EMAILS`,
    plus `JINA_API_KEY` (recommended).
    Optionally restrict who can join with `AUTH_ALLOWED_EMAILS` / `AUTH_ALLOWED_DOMAINS`, or close sign-up with `SIGNUPS_DISABLED=1`.
    Deploy.
-6. Open the site, create your account with the email listed in `ADMIN_EMAILS` (it then has an **Admin** page under the
+7. Open the site, create your account with the email listed in `ADMIN_EMAILS` (it then has an **Admin** page under the
    account menu that shows which keys the deployment can see), add your reference URLs on **Profile**,
    and press **Generate Weekly Briefing**. If you used the earlier single-user version, the first admin to sign in
    takes over its profile and editions.
@@ -167,7 +179,8 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 | `SUPABASE_ANON_KEY` | Sign-in (Supabase Auth, server-side only); required on Vercel. `SUPABASE_PUBLISHABLE_KEY` also works. |
 | `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, the **Admin** page (account menu → Admin, `/admin`: problems, which keys the deployment can see, services, usage), owner notifications. |
 | `AUTH_ALLOWED_EMAILS`, `AUTH_ALLOWED_DOMAINS` | Optional allow-list (e.g. `ualberta.ca`). Empty means anyone may sign up. |
-| `SIGNUPS_DISABLED` | `1` closes sign-up to everyone except admins. |
+| `SIGNUPS_DISABLED` | `1` closes sign-up to everyone except admins (also for GitHub / Google sign-in). |
+| `OAUTH_PROVIDERS` | Social sign-in buttons: `github,google`, `github`, or `none`. Unset: the providers enabled in Supabase Auth. |
 | `USER_WEEKLY_RUN_LIMIT` | Generations per user per rolling 7 days (default 3; `0` = unlimited). |
 | `GLOBAL_DAILY_RUN_LIMIT` | Generations across all non-admin users per 24 h (default 30; `0` = unlimited). |
 | `NTFY_TOPIC_URL`, `NTFY_TOKEN`, `NTFY_DISABLED` | Owner notifications. Default topic `https://ntfy.sh/lipid-plus`. |
@@ -185,11 +198,15 @@ src/lib/extract/      page fetching, Readability extraction, date detection (met
 src/lib/pipeline/     the eight stages, prompts, verifier, identity resolution, semantic scoring & feedback learning,
                       ranking, runner (leases, resume, notifications)
 src/lib/store/        Supabase store and local file store behind one interface
-src/lib/auth/         Supabase Auth (server-side cookies) and local dev accounts behind one interface; allow-list policy
+src/lib/auth/         Supabase Auth (server-side cookies; email, GitHub and Google sign-in) and local dev accounts behind
+                      one interface; allow-list and sign-up policy
 src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.ts usage limits
 src/lib/render/       standalone HTML edition renderer
-src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms
-src/app/page.tsx      the home page (classic card design, src/app/classic.css); /today shows the latest edition
+src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms; feedback
+                      (toasts, navigation progress bar, loading skeletons, page transitions) and the run driver
+src/app/(home)/       the home page (classic card design, src/app/classic.css); /today shows the latest edition.
+                      Pages with child routes keep page + loading skeleton in a route group ((home), (archive),
+                      (edition)) so a parent's skeleton never stands in for a child page
 src/app/admin/        admin page: problems, which keys the deployment sees, services, usage
 supabase/migrations/  database schema
 tests/                vitest suites (parsers, verification, ranking, providers, end-to-end mock pipeline)
@@ -212,4 +229,10 @@ To add a search source, implement `SearchProvider` and add it to the routing in 
 - **WeChat and patents** are found through domain-restricted web search (`mp.weixin.qq.com`, Google Patents, WIPO…),
   so they need a search API key.
 - **Undated pages** found by a past-week search filter are allowed but penalized, and labeled "date unverified".
+- **WeChat sign-in** is not offered. Supabase Auth has no WeChat provider, and WeChat's web login is not standard OAuth
+  (it uses `appid`/`secret` parameters, needs an `openid` to read the profile, and returns no email), so even
+  Supabase's custom OAuth providers cannot talk to it directly. It also needs an approved website application on the
+  WeChat Open Platform, which requires a developer account verified with a business license (300 CNY a year) and, in
+  practice, an ICP-filed domain. With those in place, the practical route is an identity service that supports WeChat
+  and exposes OpenID Connect (with an email for each account), added to Supabase as a custom OIDC provider.
 - Dates are checked in this order: provider metadata, then page metadata, then JSON-LD, then WeChat timestamps. Anything outside the window is dropped.

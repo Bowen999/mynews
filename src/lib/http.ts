@@ -4,7 +4,11 @@ import { config } from "./config";
 
 /** Public base URL for links in notifications (explicit config first, then request headers). */
 export function baseUrlFrom(req: Request): string | undefined {
-  if (config.baseUrl) return config.baseUrl;
+  return config.baseUrl ?? requestOrigin(req);
+}
+
+/** The origin the browser used for this request (behind proxies, from the forwarded headers). */
+export function requestOrigin(req: Request): string | undefined {
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   if (!host) return undefined;
   const proto = req.headers.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");

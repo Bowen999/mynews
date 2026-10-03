@@ -1,9 +1,21 @@
 import { Suspense } from "react";
+import type { OAuthProvider } from "@/lib/auth/providers";
 import { AuthForm } from "./AuthForm";
+import { Page } from "./PageTransition";
 
-export function AuthPage({ mode, statement, dek }: { mode: "login" | "signup" | "forgot" | "reset"; statement: string; dek: string }) {
+export function AuthPage({
+  mode,
+  statement,
+  dek,
+  providers,
+}: {
+  mode: "login" | "signup" | "forgot" | "reset";
+  statement: string;
+  dek: string;
+  providers?: OAuthProvider[];
+}) {
   return (
-    <div className="wrap">
+    <Page>
       <div className="split">
         <div className="statement">
           <div className="label">MyNews</div>
@@ -16,10 +28,10 @@ export function AuthPage({ mode, statement, dek }: { mode: "login" | "signup" | 
         </div>
         <div className="panel">
           <Suspense>
-            <AuthForm mode={mode} />
+            <AuthForm mode={mode} providers={providers} />
           </Suspense>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

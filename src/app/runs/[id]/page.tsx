@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ownedRun } from "@/lib/accounts";
 import { HttpError } from "@/lib/auth";
+import { PageTransition } from "@/components/PageTransition";
 import { RunProgress } from "@/components/RunProgress";
 import { toRunView } from "@/lib/run-view";
 import { requirePageUser } from "@/lib/session";
@@ -19,5 +20,9 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
       throw e;
     },
   );
-  return <RunProgress initial={toRunView(run)} />;
+  return (
+    <PageTransition>
+      <RunProgress initial={toRunView(run)} />
+    </PageTransition>
+  );
 }

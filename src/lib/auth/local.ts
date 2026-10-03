@@ -89,7 +89,7 @@ export class LocalAuth implements AuthBackend {
   }
 
   private toUser(r: LocalUserRecord): AuthUser {
-    return { id: r.id, email: r.email, isAdmin: isAdminEmail(r.email) };
+    return { id: r.id, email: r.email, isAdmin: isAdminEmail(r.email), providers: ["email"] };
   }
 
   private startSession(userId: string) {
@@ -148,5 +148,9 @@ export class LocalAuth implements AuthBackend {
 
   async completeEmailLink(): Promise<{ error?: string }> {
     return { error: "Email links are only used with Supabase Auth." };
+  }
+
+  async oauthUrl(): Promise<{ url?: string; error?: string }> {
+    return { error: "Signing in with GitHub or Google needs Supabase Auth (not configured in this local setup)." };
   }
 }

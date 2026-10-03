@@ -4,7 +4,7 @@ import type { BriefingItem, Edition } from "@/lib/types";
 import { formatDay } from "@/lib/util/dates";
 import { dateSpan } from "./EditionIndex";
 import { Prose } from "./Prose";
-import { Analysis, FeedbackButtons, ReadTracker } from "./StoryClient";
+import { Analysis, FeedbackButtons, ReadTracker, StoryKeys } from "./StoryClient";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -13,13 +13,17 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
   const prev = edition.items.find((i) => i.rank === item.rank - 1);
   const next = edition.items.find((i) => i.rank === item.rank + 1);
   const base = `/editions/${edition.id}`;
+  const story = (rank: number) => `${base}/stories/${rank}`;
 
   return (
     <ReadTracker editionId={edition.id} itemId={item.id}>
+    <StoryKeys prev={prev && story(prev.rank)} next={next && story(next.rank)} />
     <article>
       <header className="article-head">
         <nav className="crumbs label" aria-label="Breadcrumb">
-          <Link href={base}>Weekly Briefing No. {edition.number}</Link>
+          <Link href={base} transitionTypes={["nav-back"]}>
+            Weekly Briefing No. {edition.number}
+          </Link>
           <span className="muted">/</span>
           <span>
             {pad(item.rank)} {categoryLabel(item.category)}
@@ -184,28 +188,31 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
 
       <nav className="pager" aria-label="More stories">
         {prev ? (
-          <Link href={`${base}/stories/${prev.rank}`}>
+          <Link href={story(prev.rank)} transitionTypes={["nav-back"]}>
             <span className="label muted">← Previous · {pad(prev.rank)}</span>
             <span className="title-m">{prev.title}</span>
           </Link>
         ) : (
-          <Link href={base}>
+          <Link href={base} transitionTypes={["nav-back"]}>
             <span className="label muted">← Edition</span>
             <span className="title-m">Back to No. {edition.number}</span>
           </Link>
         )}
         {next ? (
-          <Link href={`${base}/stories/${next.rank}`}>
+          <Link href={story(next.rank)} transitionTypes={["nav-forward"]}>
             <span className="label muted">Next · {pad(next.rank)} →</span>
             <span className="title-m">{next.title}</span>
           </Link>
         ) : (
-          <Link href={base}>
+          <Link href={base} transitionTypes={["nav-back"]}>
             <span className="label muted">Edition →</span>
             <span className="title-m">Back to No. {edition.number}</span>
           </Link>
         )}
       </nav>
+      <p className="pager-hint">
+        Tip: press <kbd>←</kbd> or <kbd>→</kbd> for the previous or next story.
+      </p>
     </article>
     </ReadTracker>
   );

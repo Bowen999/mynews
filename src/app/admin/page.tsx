@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { config, deploymentEnvironment, keyDiagnostics } from "@/lib/config";
+import { PAGE_HEADS, PageHead } from "@/components/PageHead";
+import { Page } from "@/components/PageTransition";
+import { enabledOAuthProviders } from "@/lib/auth/oauth";
+import { providerLabel } from "@/lib/auth/providers";
+import { config, deploymentEnvironment, hasSupabaseAuth, keyDiagnostics } from "@/lib/config";
 import { requirePageUser } from "@/lib/session";
 import { systemStatus } from "@/lib/status";
 import { getStore } from "@/lib/store";
@@ -41,16 +45,12 @@ export default async function AdminPage() {
   if (!user.isAdmin) notFound();
   const status = systemStatus();
   const keys = keyDiagnostics();
-  const runs = await usage();
+  const [runs, oauth] = await Promise.all([usage(), enabledOAuthProviders()]);
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
 
   return (
-    <div className="wrap">
-      <header className="page-head">
-        <div className="label">Admins only</div>
-        <h1 className="title-xl">Admin</h1>
-        <p className="dek">What this deployment can see and use, and how much the app is being used.</p>
-      </header>
+    <Page>
+      <PageHead {...PAGE_HEADS.admin} />
 
       <Section title="Needs attention" hint="Problems block generation; advisories limit quality.">
         {status.problems.length === 0 && status.advisories.length === 0 ? (
@@ -100,6 +100,12 @@ export default async function AdminPage() {
           <dd>{status.embeddings}</dd>
           <dt>Storage</dt>
           <dd>{status.storage === "supabase" ? "Supabase" : "Local files (development)"}</dd>
+          <dt>Sign-in</dt>
+          <dd>
+            {hasSupabaseAuth()
+              ? ["email", ...oauth].map(providerLabel).join(" · ") + (oauth.length ? "" : " (enable GitHub or Google in Supabase Auth to add buttons)")
+              : "Local development accounts (email only)"}
+          </dd>
           <dt>Owner notifications</dt>
           <dd>{status.ntfyTopic}</dd>
         </dl>
@@ -121,7 +127,7 @@ export default async function AdminPage() {
           Your own settings are on the <Link className="link" href="/profile">Profile</Link> page.
         </p>
       </Section>
-    </div>
+    </Page>
   );
 }
 

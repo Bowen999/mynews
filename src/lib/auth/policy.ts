@@ -1,4 +1,5 @@
 import { config } from "../config";
+import type { AuthUser } from "./types";
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -21,6 +22,17 @@ export function isEmailAllowed(email: string): boolean {
   if (!emails.length && !domains.length) return true;
   const domain = e.split("@")[1] ?? "";
   return emails.includes(e) || domains.some((d) => domain === d || domain.endsWith(`.${d}`));
+}
+
+/**
+ * Whether an account that just finished signing in through /auth/callback (GitHub, Google or an email
+ * link) may use the app: the same allow-list as email sign-in, and while sign-ups are closed
+ * (SIGNUPS_DISABLED) only existing accounts and admins.
+ */
+export function signInProblem(user: AuthUser, isNewAccount: boolean): string | null {
+  if (!isEmailAllowed(user.email)) return "This email address is not on the list of allowed users.";
+  if (isNewAccount && config.auth.signupsDisabled && !user.isAdmin) return "New sign-ups are currently closed.";
+  return null;
 }
 
 export function passwordProblem(password: string): string | null {

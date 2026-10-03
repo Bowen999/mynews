@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PAGE_HEADS, PageHead } from "@/components/PageHead";
+import { Page } from "@/components/PageTransition";
 import { profileForUser } from "@/lib/accounts";
 import { requirePageUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
@@ -23,12 +25,8 @@ export default async function Archive() {
   const unfinished = runs.filter((r) => r.status !== "completed");
 
   return (
-    <div className="wrap">
-      <header className="page-head">
-        <div className="label">Every edition, preserved</div>
-        <h1 className="title-xl">Archive</h1>
-        <p className="dek">Each briefing is an independent edition. Open any past week, or download it as a standalone page.</p>
-      </header>
+    <Page>
+      <PageHead {...PAGE_HEADS.archive} />
 
       {unfinished.length > 0 && (
         <>
@@ -77,6 +75,6 @@ export default async function Archive() {
           ))}
         </ol>
       )}
-    </div>
+    </Page>
   );
 }

@@ -163,7 +163,7 @@ export function EditionIndex({ edition }: { edition: Edition }) {
           <a className="link" href={`/editions/${edition.id}/standalone`} target="_blank" rel="noopener">
             Open standalone page ↗
           </a>
-          <a className="link" href={`/editions/${edition.id}/standalone?download=1`}>
+          <a className="link" href={`/editions/${edition.id}/standalone?download=1`} download>
             Download HTML ↓
           </a>
         </div>

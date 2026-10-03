@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType, SupabaseClient, User } from "@supabase/supabase-js";
 import { config } from "../config";
 import { isAdminEmail, normalizeEmail } from "./policy";
+import type { OAuthProvider } from "./providers";
 import type { AuthBackend, AuthResult, AuthUser, CookieJar } from "./types";
 
 /** Map Supabase Auth errors to short user-facing messages. */
@@ -41,7 +42,8 @@ export class SupabaseAuth implements AuthBackend {
 
   private toUser(u: User | null | undefined): AuthUser | null {
     if (!u?.email) return null;
-    return { id: u.id, email: normalizeEmail(u.email), isAdmin: isAdminEmail(u.email) };
+    const providers = Array.isArray(u.app_metadata?.providers) ? (u.app_metadata.providers as string[]) : undefined;
+    return { id: u.id, email: normalizeEmail(u.email), isAdmin: isAdminEmail(u.email), providers };
   }
 
   async getUser(): Promise<AuthUser | null> {
@@ -77,15 +79,22 @@ export class SupabaseAuth implements AuthBackend {
     return error ? { error: describeAuthError(error.message) } : {};
   }
 
-  async completeEmailLink(params: { code?: string; tokenHash?: string; type?: string }): Promise<{ error?: string }> {
+  async completeEmailLink(params: { code?: string; tokenHash?: string; type?: string }): Promise<{ error?: string; user?: AuthUser }> {
     if (params.code) {
-      const { error } = await this.client.auth.exchangeCodeForSession(params.code);
-      return error ? { error: describeAuthError(error.message) } : {};
+      const { data, error } = await this.client.auth.exchangeCodeForSession(params.code);
+      return error ? { error: describeAuthError(error.message) } : { user: this.toUser(data.user) ?? undefined };
     }
     if (params.tokenHash && params.type) {
-      const { error } = await this.client.auth.verifyOtp({ token_hash: params.tokenHash, type: params.type as EmailOtpType });
-      return error ? { error: describeAuthError(error.message) } : {};
+      const { data, error } = await this.client.auth.verifyOtp({ token_hash: params.tokenHash, type: params.type as EmailOtpType });
+      return error ? { error: describeAuthError(error.message) } : { user: this.toUser(data.user) ?? undefined };
     }
     return { error: "This link is incomplete or has expired." };
+  }
+
+  /** PKCE: the code verifier goes into a cookie here, and /auth/callback exchanges the returned code. */
+  async oauthUrl(provider: OAuthProvider, redirectTo: string): Promise<{ url?: string; error?: string }> {
+    const { data, error } = await this.client.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: true } });
+    if (error || !data.url) return { error: describeAuthError(error?.message) };
+    return { url: data.url };
   }
 }

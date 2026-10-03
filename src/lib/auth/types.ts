@@ -1,7 +1,11 @@
+import type { OAuthProvider } from "./providers";
+
 export interface AuthUser {
   id: string;
   email: string;
   isAdmin: boolean;
+  /** How the account can sign in: "email", "github", "google". */
+  providers?: string[];
 }
 
 /** Minimal cookie access shared by route handlers, server components and the proxy. */
@@ -36,8 +40,10 @@ export interface AuthBackend {
   signOut(): Promise<void>;
   requestPasswordReset(email: string, redirectTo: string): Promise<{ error?: string }>;
   updatePassword(password: string): Promise<{ error?: string }>;
-  /** Complete an email link (PKCE `code` or `token_hash`) and start a session. */
-  completeEmailLink(params: { code?: string; tokenHash?: string; type?: string }): Promise<{ error?: string }>;
+  /** Complete an email link or a social sign-in (PKCE `code`, or `token_hash`) and start a session. */
+  completeEmailLink(params: { code?: string; tokenHash?: string; type?: string }): Promise<{ error?: string; user?: AuthUser }>;
+  /** Where to send the browser to sign in with a social provider (GitHub, Google). */
+  oauthUrl(provider: OAuthProvider, redirectTo: string): Promise<{ url?: string; error?: string }>;
 }
 
 export class HttpError extends Error {

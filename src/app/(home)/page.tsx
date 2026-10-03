@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GenerateButton } from "@/components/GenerateButton";
+import { Page } from "@/components/PageTransition";
 import { plain } from "@/components/Prose";
 import { configurationAdvisories } from "@/lib/config";
 import { loadDashboard } from "@/lib/dashboard";
@@ -7,7 +8,7 @@ import { categoryLabel } from "@/lib/render/format";
 import { currentUser } from "@/lib/session";
 import { CATEGORY_META, STAGES, type Category } from "@/lib/types";
 import { formatRange } from "@/lib/util/dates";
-import "./classic.css";
+import "../classic.css";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function Home() {
   const user = await currentUser();
   if (!user) {
     return (
-      <div className="wrap classic">
+      <Page className="wrap classic">
         <Hero
           actions={
             <>
@@ -71,7 +72,7 @@ export default async function Home() {
             </>
           }
         />
-      </div>
+      </Page>
     );
   }
 
@@ -114,7 +115,7 @@ export default async function Home() {
     const hasSources = Boolean(data?.profile.sources.length);
     const advisories = user.isAdmin ? configurationAdvisories() : [];
     return (
-      <div className="wrap classic">
+      <Page className="wrap classic">
         {notices}
         <Hero
           actions={
@@ -142,13 +143,13 @@ export default async function Home() {
             ))}
           </div>
         )}
-      </div>
+      </Page>
     );
   }
 
   const stories = `/editions/${edition.id}/stories`;
   return (
-    <div className="wrap classic">
+    <Page className="wrap classic">
       {notices}
       <section className="cl-cover">
         <div className="cl-kicker cl-reveal">
@@ -234,6 +235,6 @@ export default async function Home() {
         </>
       )}
       <div style={{ height: 24 }} />
-    </div>
+    </Page>
   );
 }

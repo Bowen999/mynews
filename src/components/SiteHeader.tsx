@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/session";
 import { AccountMenu } from "./AccountMenu";
 import { GenerateButton } from "./GenerateButton";
 import { NavLinks } from "./NavLinks";
+import { RunIndicator } from "./RunDriver";
 import { ThemeToggle } from "./ThemeToggle";
 
 export async function SiteHeader() {
@@ -18,6 +19,7 @@ export async function SiteHeader() {
           <ThemeToggle />
           {user ? (
             <>
+              <RunIndicator />
               <GenerateButton />
               <AccountMenu email={user.email} isAdmin={user.isAdmin} />
             </>
@@ -26,8 +28,9 @@ export async function SiteHeader() {
               <Link className="btn btn-quiet btn-sm" href="/login">
                 Sign in
               </Link>
-              <Link className="btn btn-solid btn-sm" href="/signup">
-                Create account
+              <Link className="btn btn-solid btn-sm signup-link" href="/signup">
+                <span className="label-full">Create account</span>
+                <span className="label-short">Sign up</span>
               </Link>
             </>
           )}

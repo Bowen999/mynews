@@ -247,7 +247,7 @@ body:has(.classic) .site-footer {
   body:has(.classic) .header-actions {
     flex: none;
   }
-  body:has(.classic) .header-actions .btn-solid {
+  body:has(.classic) .header-actions .btn-generate {
     width: 36px;
     height: 36px;
     padding: 0;
@@ -270,7 +270,7 @@ body:has(.classic) .site-footer {
     gap: 4px;
   }
   body:has(.classic) .site-header .icon-btn,
-  body:has(.classic) .header-actions .btn-solid {
+  body:has(.classic) .header-actions .btn-generate {
     width: 32px;
     height: 32px;
   }
@@ -880,5 +880,66 @@ button.cl-chip[aria-pressed="true"] {
   }
   .cl-contents li:nth-child(2) {
     border-top: 1px solid var(--line);
+  }
+}
+
+/* ---------- Feedback on the home page: toasts and loading placeholders ---------- */
+
+body:has(.classic) .toast {
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 94%, transparent);
+  color: var(--bg-2);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+body:has(.classic) .toast-error {
+  border-left: 0;
+  padding-left: 16px;
+}
+
+.classic .bone {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 8px;
+}
+
+.classic .sk-pill,
+.classic .sk-round {
+  border-radius: 999px;
+}
+
+.classic .sk-dot {
+  border-radius: 50%;
+}
+
+.cl-contents .sk-contents-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.cl-contents .sk-contents-row .bone-line {
+  font-size: 18px;
+}
+
+body:has(.classic) .run-chip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border-color: var(--line-2);
+  color: var(--text-2);
+}
+
+body:has(.classic) .run-chip:hover {
+  color: var(--text);
+  background: var(--line);
+  border-color: var(--line);
+}
+
+@media (max-width: 680px) {
+  body:has(.classic) .run-chip {
+    width: 36px;
+    padding: 0;
   }
 }

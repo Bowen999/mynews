@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { RequiredInput } from "@/lib/types";
+import { confirmUnsaved } from "@/lib/unsaved";
+import { startNavigationProgress } from "./NavigationProgress";
+import { toast } from "./Toast";
 
 interface Blocker {
   title: string;
@@ -56,22 +59,33 @@ export function GenerateButton({
   variant?: "editorial" | "classic" | "classic-secondary";
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  // Stays pending until the progress page has rendered, so the button can't be pressed twice.
+  const [navigating, startTransition] = useTransition();
   const [blocker, setBlocker] = useState<Blocker | null>(null);
+  const busy = requesting || navigating;
 
   const start = async () => {
-    setBusy(true);
+    if (busy || !confirmUnsaved("The briefing uses your saved profile. Generate anyway?")) return;
+    setRequesting(true);
     try {
       const res = await fetch("/api/runs", { method: "POST" });
-      const data = await res.json();
-      if (res.status === 401) router.push("/login?next=/");
-      else if (res.status === 409 || res.status === 429) setBlocker({ title: data.error, inputs: data.requiredInputs ?? [] });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        toast("Your session ended. Sign in to generate a briefing.");
+        startNavigationProgress();
+        startTransition(() => router.push("/login?next=/"));
+      } else if (res.status === 409 || res.status === 429) setBlocker({ title: data.error, inputs: data.requiredInputs ?? [] });
       else if (!res.ok) setBlocker({ title: "Error", inputs: [{ key: "ERROR", message: data.error ?? "Could not start." }] });
-      else router.push(`/runs/${data.run.id}`);
-    } catch (e) {
-      setBlocker({ title: "Error", inputs: [{ key: "ERROR", message: e instanceof Error ? e.message : "Network error" }] });
+      else {
+        if (data.resumed) toast("A briefing is already being generated. Here is its progress.");
+        startNavigationProgress();
+        startTransition(() => router.push(`/runs/${data.run.id}`));
+      }
+    } catch {
+      toast.error("Could not reach the server. Check your connection and try again.");
     } finally {
-      setBusy(false);
+      setRequesting(false);
     }
   };
 
@@ -83,10 +97,11 @@ export function GenerateButton({
           className={`cl-btn ${variant === "classic" ? "cl-btn-primary" : "cl-btn-secondary"} ${size === "lg" ? "cl-btn-lg" : "cl-btn-sm"}`}
           onClick={start}
           disabled={busy}
+          aria-busy={busy}
           aria-label="Generate Weekly Briefing"
         >
           {busy && <span className="cl-spinner" />}
-          Generate Weekly Briefing
+          {busy ? "Starting…" : "Generate Weekly Briefing"}
         </button>
         <BlockerDialog blocker={blocker} onClose={() => setBlocker(null)} />
       </>
@@ -97,9 +112,10 @@ export function GenerateButton({
     <>
       <button
         type="button"
-        className={`btn btn-solid ${size === "lg" ? "btn-lg" : "btn-sm"}`}
+        className={`btn btn-solid btn-generate ${size === "lg" ? "btn-lg" : "btn-sm"}`}
         onClick={start}
         disabled={busy}
+        aria-busy={busy}
         aria-label="Generate Weekly Briefing"
       >
         {busy ? <span className="spinner" /> : <span aria-hidden>＋</span>}

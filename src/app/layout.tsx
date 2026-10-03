@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight, Source_Serif_4 } from "next/font/google";
+import { Suspense } from "react";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { themeInitScript } from "@/components/ThemeToggle";
+import { Toaster } from "@/components/Toast";
 import "./globals.css";
 
 // Inter Tight and Source Serif 4 stand in for a Graphik / Tiempos style pairing.
@@ -31,9 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <SiteHeader />
         <main>{children}</main>
         <SiteFooter />
+        <Toaster />
       </body>
     </html>
   );

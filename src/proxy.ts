@@ -15,6 +15,15 @@ function isPublic(pathname: string): boolean {
  * API routes are excluded from the matcher and answer 401 themselves.
  */
 export async function proxy(request: NextRequest) {
+  // Supabase sends the browser to the Site URL (the front page) when a sign-in redirect URL isn't on
+  // its allow list; finish the sign-in there as well.
+  const params = request.nextUrl.searchParams;
+  if (request.nextUrl.pathname === "/" && (params.has("code") || params.has("error_description"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
   let signedIn = false;
 

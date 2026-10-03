@@ -162,6 +162,13 @@ export const config = {
     get signupsDisabled() {
       return env("SIGNUPS_DISABLED") === "1";
     },
+    /**
+     * Social sign-in buttons: "github,google", or "none". Unset means: show the providers that are
+     * enabled in Supabase Auth (read from its public settings).
+     */
+    get oauthProviders() {
+      return env("OAUTH_PROVIDERS");
+    },
     /** Secret for signing local-dev session cookies (not used with Supabase Auth). */
     get localSecret() {
       return env("AUTH_SECRET") ?? "mynews-local-development-secret";

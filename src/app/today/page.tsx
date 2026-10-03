@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EditionIndex } from "@/components/EditionIndex";
+import { Page } from "@/components/PageTransition";
 import { loadDashboard } from "@/lib/dashboard";
 import { requirePageUser } from "@/lib/session";
 import { STAGES } from "@/lib/types";
@@ -17,7 +18,7 @@ export default async function TodayPage() {
   const unfinished = data?.unfinished;
 
   return (
-    <div className="wrap">
+    <Page>
       {(problems.length > 0 || unfinished) && (
         <div className="notices">
           {problems.map((p) => (
@@ -43,6 +44,6 @@ export default async function TodayPage() {
         </div>
       )}
       {data?.edition && <EditionIndex edition={data.edition} />}
-    </div>
+    </Page>
   );
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { profileForUser } from "@/lib/accounts";
+import { PAGE_HEADS, PageHead } from "@/components/PageHead";
+import { Page } from "@/components/PageTransition";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { hasSupabaseAuth } from "@/lib/config";
 import { checkQuota } from "@/lib/quota";
@@ -18,18 +20,14 @@ export default async function ProfilePage() {
   const reading = await readingSummary(store, profile.id);
 
   return (
-    <div className="wrap">
-      <header className="page-head">
-        <div className="label">Personalization</div>
-        <h1 className="title-xl">Profile &amp; settings</h1>
-        <p className="dek">Who your briefing is about, what to emphasize, and how you are notified.</p>
-      </header>
+    <Page>
+      <PageHead {...PAGE_HEADS.profile} />
       <ProfileEditor
         initial={profile}
         usage={{ used: quota.used, limit: quota.limit, nextSlotAt: quota.nextSlotAt }}
-        account={{ email: user.email, isAdmin: user.isAdmin, authKind: hasSupabaseAuth() ? "supabase" : "local" }}
+        account={{ email: user.email, isAdmin: user.isAdmin, authKind: hasSupabaseAuth() ? "supabase" : "local", providers: user.providers ?? ["email"] }}
         reading={reading}
       />
-    </div>
+    </Page>
   );
 }
