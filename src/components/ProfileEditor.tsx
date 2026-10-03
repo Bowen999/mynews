@@ -94,7 +94,7 @@ function hostOf(url: string): string {
   }
 }
 
-function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder: string }) {
+function TagInput({ value, onChange, placeholder, url = false }: { value: string[]; onChange: (v: string[]) => void; placeholder: string; url?: boolean }) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const t = draft.trim();
@@ -120,6 +120,9 @@ function TagInput({ value, onChange, placeholder }: { value: string[]; onChange:
           className="input"
           value={draft}
           placeholder={placeholder}
+          // A phone's keyboard: a web-address layout for feeds, and no capital letter or autocorrect in them.
+          {...(url ? { type: "url", inputMode: "url", autoCapitalize: "none", autoCorrect: "off", spellCheck: false } : {})}
+          enterKeyHint="done"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -451,6 +454,9 @@ export function ProfileEditor({
           <input
             className="input"
             value={prefs.semanticScholarAuthorId ?? ""}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             onChange={(e) => setPrefs({ semanticScholarAuthorId: e.target.value || undefined })}
             placeholder="1741101 or https://www.semanticscholar.org/author/…"
           />
@@ -472,6 +478,7 @@ export function ProfileEditor({
             value={prefs.watchFeeds ?? []}
             onChange={(v) => setPrefs({ watchFeeds: v.slice(0, 10) })}
             placeholder="RSS or Atom feed URL"
+            url
           />
           <small>Up to 10.</small>
         </div>
@@ -483,6 +490,9 @@ export function ProfileEditor({
           <input
             className="input"
             value={prefs.ntfyTopic ?? ""}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             onChange={(e) => setPrefs({ ntfyTopic: e.target.value || undefined })}
             placeholder="a-hard-to-guess-topic-name"
           />

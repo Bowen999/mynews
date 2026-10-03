@@ -15,7 +15,7 @@ export async function SiteHeader() {
           MyNews
         </Link>
         {user ? <NavLinks /> : <span style={{ marginRight: "auto" }} />}
-        <div className="header-actions">
+        <div className="header-actions" data-user={user ? "" : undefined}>
           <ThemeToggle />
           {user ? (
             <>

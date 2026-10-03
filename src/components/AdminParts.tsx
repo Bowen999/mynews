@@ -34,6 +34,7 @@ export function Figure({ label, value, unit, note }: { label: string; value: Rea
   );
 }
 
-export function Tag({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
-  return <span className={`tag${muted ? " muted" : ""}`}>{children}</span>;
+/** A small label next to a name (Admin, Unconfirmed). Not the interest chips on the profile page (.tag). */
+export function Badge({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
+  return <span className={`badge${muted ? " muted" : ""}`}>{children}</span>;
 }

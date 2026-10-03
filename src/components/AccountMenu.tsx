@@ -6,10 +6,12 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { startNavigationProgress } from "./NavigationProgress";
 import { forgetRun } from "./RunDriver";
 import { toast } from "./Toast";
+import { useTheme } from "./ThemeToggle";
 
 export function AccountMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [theme, toggleTheme] = useTheme();
   const ref = useRef<HTMLDetailsElement>(null);
   const [requesting, setRequesting] = useState(false);
   const [navigating, startTransition] = useTransition();
@@ -77,6 +79,10 @@ export function AccountMenu({ email, isAdmin }: { email: string; isAdmin: boolea
             Admin
           </Link>
         )}
+        {/* The header's switch is hidden on phones to make room, so it lives here instead. */}
+        <button type="button" role="menuitem" className="account-theme" onClick={toggleTheme}>
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
         <button type="button" role="menuitem" onClick={signOut} disabled={busy} aria-busy={busy}>
           {busy && <span className="spinner" />} {busy ? "Signing out…" : "Sign out"}
         </button>

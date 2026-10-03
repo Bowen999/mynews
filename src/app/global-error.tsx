@@ -1,9 +1,11 @@
 "use client";
 
+import { themeInitScript } from "@/components/ThemeToggle";
+
 // Replaces the root layout when it fails, so it brings its own document and minimal styles.
 const css = `
-:root{color-scheme:light dark;--bg:#fff;--ink:#111;--ink-2:#545454}
-@media (prefers-color-scheme:dark){:root{--bg:#0f0f0f;--ink:#f1f1ef;--ink-2:#a9a9a6}}
+:root{color-scheme:dark;--bg:#0f0f0f;--ink:#f1f1ef;--ink-2:#a9a9a6}
+:root[data-theme=light]{color-scheme:light;--bg:#fff;--ink:#111;--ink-2:#545454}
 body{margin:0;min-height:100dvh;display:grid;place-items:center;background:var(--bg);color:var(--ink);
 font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Noto Sans SC",sans-serif}
 main{max-width:560px;padding:32px 20px}
@@ -21,6 +23,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
       <head>
         <title>Something went wrong · MyNews</title>
         <style dangerouslySetInnerHTML={{ __html: css }} />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
         <main>

@@ -73,9 +73,8 @@ function renderItem(it: BriefingItem): string {
 }
 
 const CSS = `
-:root{--bg:#fff;--ink:#111;--ink2:#545454;--ink3:#8c8c8c;--hair:#e2e2e0;--wash:#f5f5f3;--brand:#fa233b;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;--brand:#ff375f;color-scheme:dark}}
-:root[data-theme=dark]{--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;--brand:#ff375f;color-scheme:dark}
+:root{--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;--brand:#ff375f;color-scheme:dark}
+:root[data-theme=light]{--bg:#fff;--ink:#111;--ink2:#545454;--ink3:#8c8c8c;--hair:#e2e2e0;--wash:#f5f5f3;--brand:#fa233b;color-scheme:light}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Inter Tight","Helvetica Neue",Helvetica,Arial,"PingFang SC","Noto Sans SC",sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
@@ -136,11 +135,11 @@ details.analysis h5{font-size:16px;margin:20px 0 6px}
 .also a{font-weight:600;text-decoration:none}.also a:hover{text-decoration:underline}.also small{display:block;color:var(--ink3);font-size:13px}
 footer{margin-top:64px;padding:20px 0 56px;border-top:1px solid var(--hair);font-family:"Source Serif 4",Georgia,serif;font-size:14px;color:var(--ink2)}
 @media (max-width:640px){.block{grid-template-columns:1fr;gap:10px}.bar{grid-template-columns:90px 1fr 30px}.toc a{grid-template-columns:36px 1fr}.toc a span{display:none}.cover .line{flex-direction:column}}
-@media print{button.theme{display:none}details.analysis{display:block}.story{break-inside:avoid-page}}
+@media print{:root,:root[data-theme=light]{--bg:#fff;--ink:#111;--ink2:#545454;--ink3:#8c8c8c;--hair:#e2e2e0;--wash:#f5f5f3;--brand:#fa233b;color-scheme:light}button.theme{display:none}details.analysis{display:block}.story{break-inside:avoid-page}}
 `;
 
 const JS = `(function(){var r=document.documentElement,k='mynews-theme';try{var s=localStorage.getItem(k);if(s)r.dataset.theme=s}catch(e){}
-document.addEventListener('click',function(e){var b=e.target.closest('button.theme');if(!b)return;var d=r.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var n=d==='dark'?'light':'dark';r.dataset.theme=n;try{localStorage.setItem(k,n)}catch(e){}});})();`;
+document.addEventListener('click',function(e){var b=e.target.closest('button.theme');if(!b)return;var n=r.dataset.theme==='light'?'dark':'light';r.dataset.theme=n;try{localStorage.setItem(k,n)}catch(e){}});})();`;
 
 export function renderStandalone(edition: Edition): string {
   const range = formatRange(edition.windowStart, edition.windowEnd);
@@ -162,7 +161,7 @@ export function renderStandalone(edition: Edition): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark light">
 <meta name="robots" content="noindex">
 <title>${escapeHtml(`Weekly Briefing No. ${edition.number} — ${edition.headline}`)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

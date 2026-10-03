@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminNav } from "@/components/AdminNav";
-import { Figure, Figures, Section, Tag } from "@/components/AdminParts";
+import { Badge, Figure, Figures, Section } from "@/components/AdminParts";
 import { Page } from "@/components/PageTransition";
 import { loadAdminData, userDetail } from "@/lib/admin";
 import { providerLabel } from "@/lib/auth/providers";
@@ -32,7 +32,7 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
         </div>
         <h1 className="title-l user-title">
           {detail?.user.email ?? "User"}
-          {detail?.user.isAdmin && <Tag>Admin</Tag>}
+          {detail?.user.isAdmin && <Badge>Admin</Badge>}
         </h1>
       </header>
       <AdminNav />

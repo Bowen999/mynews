@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Tag } from "./AdminParts";
+import { Badge } from "./AdminParts";
 
 /** A user as the table shows it: text is formatted on the server, numbers are for sorting. */
 export interface UserTableRow {
@@ -48,7 +48,7 @@ export function UserTable({ rows }: { rows: UserTableRow[] }) {
         <label className="visually-hidden" htmlFor="user-search">
           Search users by email
         </label>
-        <input id="user-search" className="input" type="search" placeholder="Search email" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input id="user-search" className="input" type="search" placeholder="Search email" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} />
         <label className="visually-hidden" htmlFor="user-sort">
           Sort users
         </label>
@@ -93,8 +93,8 @@ export function UserTable({ rows }: { rows: UserTableRow[] }) {
                   <Link className="u-email" href={`/admin/users/${encodeURIComponent(r.id)}`}>
                     {r.email}
                   </Link>
-                  {r.isAdmin && <Tag>Admin</Tag>}
-                  {r.unconfirmed && <Tag muted>Unconfirmed</Tag>}
+                  {r.isAdmin && <Badge>Admin</Badge>}
+                  {r.unconfirmed && <Badge muted>Unconfirmed</Badge>}
                   <div className="meta">{r.methods}</div>
                 </td>
                 <td data-label="Joined">{r.joined}</td>
