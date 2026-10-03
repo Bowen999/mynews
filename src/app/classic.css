@@ -1,9 +1,9 @@
 /* ==========================================================================
-   MyNews — classic home page
-   The home page is the one page in the classic Apple News–style design (light
-   gray canvas, white rounded cards, category colors). Briefings themselves —
-   Today, the archive and every story — use the editorial system in
-   globals.css; the home page only links into them. Everything here is scoped
+   MyNews — classic front page
+   The front page, an introduction to the app, is the one page in the classic
+   Apple News–style design (light gray canvas, white rounded cards, a red
+   accent). Editions, the archive and every story use the editorial system in
+   globals.css; the front page only links into them. Everything here is scoped
    to `.classic` and `cl-` classes, and the shared header is restyled only via
    `body:has(.classic)`, so nothing leaks into other pages. Fonts follow the
    site-wide pairing: Inter Tight for headlines and UI, Source Serif 4 for
@@ -19,26 +19,15 @@
   --card-hover: #ffffff;
   --text: #1d1d1f;
   --text-2: #6e6e73;
-  --text-3: #86868b;
   --line: rgba(0, 0, 0, 0.08);
   --line-2: rgba(0, 0, 0, 0.14);
   --accent: #fa233b;
   --accent-ink: #ffffff;
   --glass: rgba(245, 245, 247, 0.72);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.07);
   --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.05), 0 24px 60px rgba(0, 0, 0, 0.12);
-
-  --indigo: #5856d6;
   --red: #e0182d;
-  --green: #248a3d;
   --orange: #c93400;
-  --teal: #0a7d8c;
-  --brown: #8b6d4a;
-  --purple: #8944ab;
-  --blue: #0066cc;
-  --pink: #d30f45;
-  --gray: #6e6e73;
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --radius: 22px;
@@ -60,24 +49,14 @@
     --card-hover: #232325;
     --text: #f5f5f7;
     --text-2: #a1a1a6;
-    --text-3: #7c7c80;
     --line: rgba(255, 255, 255, 0.09);
     --line-2: rgba(255, 255, 255, 0.16);
     --accent: #ff375f;
     --glass: rgba(0, 0, 0, 0.66);
     --shadow-sm: none;
-    --shadow-md: none;
     --shadow-lg: 0 24px 80px rgba(0, 0, 0, 0.6);
-    --indigo: #7d7aff;
     --red: #ff453a;
-    --green: #30d158;
     --orange: #ff9f0a;
-    --teal: #40c8e0;
-    --brown: #c1a07a;
-    --purple: #bf5af2;
-    --blue: #409cff;
-    --pink: #ff375f;
-    --gray: #98989d;
   }
 }
 
@@ -88,28 +67,18 @@
   --card-hover: #232325;
   --text: #f5f5f7;
   --text-2: #a1a1a6;
-  --text-3: #7c7c80;
   --line: rgba(255, 255, 255, 0.09);
   --line-2: rgba(255, 255, 255, 0.16);
   --accent: #ff375f;
   --glass: rgba(0, 0, 0, 0.66);
   --shadow-sm: none;
-  --shadow-md: none;
   --shadow-lg: 0 24px 80px rgba(0, 0, 0, 0.6);
-  --indigo: #7d7aff;
   --red: #ff453a;
-  --green: #30d158;
   --orange: #ff9f0a;
-  --teal: #40c8e0;
-  --brown: #c1a07a;
-  --purple: #bf5af2;
-  --blue: #409cff;
-  --pink: #ff375f;
-  --gray: #98989d;
 }
 
-/* ---------- Header and footer on the home page only ---------- */
-/* Same markup as on every other page; restyled to the classic look while the home page is shown. */
+/* ---------- Header and footer on the front page only ---------- */
+/* Same markup as on every other page; restyled to the classic look while the front page is shown. */
 
 body:has(.classic) .site-header {
   background: var(--glass);
@@ -287,37 +256,10 @@ body:has(.classic) .site-footer {
   border-radius: 6px;
 }
 
-.cl-tone-indigo { --tone: var(--indigo); }
-.cl-tone-red { --tone: var(--red); }
-.cl-tone-green { --tone: var(--green); }
-.cl-tone-orange { --tone: var(--orange); }
-.cl-tone-teal { --tone: var(--teal); }
-.cl-tone-brown { --tone: var(--brown); }
-.cl-tone-purple { --tone: var(--purple); }
-.cl-tone-blue { --tone: var(--blue); }
-.cl-tone-pink { --tone: var(--pink); }
-.cl-tone-gray { --tone: var(--gray); }
-
-@keyframes classic-rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes classic-spin {
   to {
     transform: rotate(360deg);
   }
-}
-
-.cl-reveal {
-  animation: classic-rise 0.7s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
 }
 
 .cl-btn {
@@ -432,10 +374,6 @@ body:has(.classic) .site-footer {
   margin: 24px 0 0;
 }
 
-.cl-cover {
-  padding: clamp(40px, 8vw, 88px) 0 clamp(28px, 5vw, 48px);
-}
-
 .cl-kicker {
   display: flex;
   flex-wrap: wrap;
@@ -446,206 +384,6 @@ body:has(.classic) .site-footer {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
-}
-
-.cl-kicker .cl-muted {
-  color: var(--text-3);
-  font-weight: 600;
-}
-
-.cl-sample-badge {
-  color: var(--orange);
-  border: 1px solid currentColor;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.06em;
-}
-
-.cl-cover h1 {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: clamp(38px, 6.4vw, 76px);
-  line-height: 1.02;
-  letter-spacing: -0.028em;
-  margin: 18px 0 20px;
-  max-width: 15ch;
-  text-wrap: balance;
-}
-
-.cl-cover .cl-dek {
-  font-family: var(--serif);
-  font-size: clamp(19px, 2.2vw, 24px);
-  line-height: 1.45;
-  color: var(--text-2);
-  max-width: 44ch;
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.cl-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 22px;
-}
-
-.cl-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  padding: 5px 12px;
-  background: transparent;
-}
-
-button.cl-chip {
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-
-button.cl-chip[aria-pressed="true"] {
-  background: var(--text);
-  color: var(--bg-2);
-  border-color: var(--text);
-}
-
-.cl-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  border-top: 2px solid var(--text);
-  padding-top: 12px;
-  margin: 56px 0 22px;
-}
-
-.cl-section-head h2 {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-.cl-section-head p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-3);
-}
-
-.cl-story-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.cl-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--line);
-  overflow: hidden;
-  cursor: pointer;
-  text-align: left;
-  padding: 0;
-  transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease), background 0.3s;
-  grid-column: span 2;
-  min-width: 0;
-}
-
-.cl-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-  background: var(--card-hover);
-}
-
-.cl-card:active {
-  transform: translateY(-1px) scale(0.995);
-}
-
-.cl-card .cl-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 22px 24px 20px;
-  flex: 1;
-}
-
-.cl-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--tone, var(--text-2));
-}
-
-.cl-card h3 {
-  margin: 0;
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: 22px;
-  line-height: 1.18;
-  letter-spacing: -0.012em;
-  text-wrap: balance;
-}
-
-.cl-card .cl-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 12px;
-  font-size: 12.5px;
-  color: var(--text-3);
-}
-
-.cl-card .cl-media {
-  aspect-ratio: 16 / 9;
-  background: color-mix(in srgb, var(--tone) 10%, var(--card));
-  overflow: hidden;
-}
-
-.cl-card .cl-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.8s var(--ease);
-}
-
-.cl-card:hover .cl-media img {
-  transform: scale(1.03);
-}
-
-.cl-card.cl-typo .cl-media {
-  display: grid;
-  place-items: end start;
-  padding: 18px 22px;
-  aspect-ratio: auto;
-  min-height: 120px;
-  background:
-    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--tone) 28%, transparent) 0%, transparent 60%),
-    color-mix(in srgb, var(--tone) 9%, var(--card));
-}
-
-.cl-card.cl-typo .cl-media .cl-big {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: 64px;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-  color: var(--tone);
-  opacity: 0.9;
 }
 
 .cl-hero {
@@ -715,53 +453,15 @@ button.cl-chip[aria-pressed="true"] {
   color: var(--text-2);
 }
 
-@media (max-width: 980px) {
-  .cl-card {
-    grid-column: span 3;
-  }
-}
-
 @media (max-width: 680px) {
-  .cl-section-head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-  .cl-story-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .cl-card{
-    grid-column: 1 / -1;
-  }
-  .cl-card .cl-body {
-    padding: 20px;
-  }
-  .cl-card.cl-typo .cl-media {
-    min-height: 88px;
-  }
-  .cl-card.cl-typo .cl-media .cl-big {
-    font-size: 48px;
-  }
   .cl-steps {
     grid-template-columns: 1fr;
-  }
-  .cl-section-head {
-    margin-top: 40px;
-  }
-}
-
-@media print {
-  .cl-card {
-    box-shadow: none;
-    break-inside: avoid;
   }
 }
 
 /* ---------- Typography: the site-wide font pairing ---------- */
 /* Headlines, numbers and UI in Inter Tight (sans); reading text in Source Serif 4 (serif). */
 
-.cl-cover h1,
 .cl-hero h1 {
   font-family: var(--sans);
   font-weight: 600;
@@ -769,121 +469,23 @@ button.cl-chip[aria-pressed="true"] {
   line-height: 0.98;
 }
 
-.cl-section-head h2,
-.cl-card h3,
-.cl-step h3{
+.cl-step h3 {
   font-family: var(--sans);
   font-weight: 600;
   letter-spacing: -0.022em;
 }
 
-.cl-card.cl-typo .cl-media .cl-big,
 .cl-step .cl-n {
   font-family: var(--sans);
   font-weight: 600;
 }
 
-.cl-cover .cl-dek,
 .cl-hero p,
 .cl-step p {
   font-family: var(--serif);
 }
 
-/* ---------- Home page: cover actions and contents ---------- */
-
-.cl-cover .cl-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 30px;
-}
-
-.cl-contents {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
-  padding: clamp(10px, 2.4vw, 24px) clamp(22px, 3.4vw, 40px);
-}
-
-.cl-contents ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 44px;
-  counter-reset: story;
-}
-
-.cl-contents li {
-  counter-increment: story;
-  border-top: 1px solid var(--line);
-}
-
-.cl-contents li:nth-child(-n + 2) {
-  border-top: 0;
-}
-
-.cl-contents a {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-  padding: 16px 0;
-}
-
-.cl-contents a::before {
-  content: counter(story);
-  width: 26px;
-  height: 26px;
-  margin-top: 1px;
-  border-radius: 50%;
-  background: var(--tone);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-}
-
-.cl-contents small {
-  display: block;
-  margin-bottom: 3px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--tone);
-}
-
-.cl-contents .cl-t {
-  display: block;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.28;
-  letter-spacing: -0.015em;
-  transition: color 0.2s;
-}
-
-.cl-contents a:hover .cl-t {
-  color: var(--tone);
-}
-
-.cl-section-head p a {
-  font-size: 14px;
-}
-
-@media (max-width: 680px) {
-  .cl-contents ol {
-    grid-template-columns: 1fr;
-  }
-  .cl-contents li:nth-child(2) {
-    border-top: 1px solid var(--line);
-  }
-}
-
-/* ---------- Feedback on the home page: toasts and loading placeholders ---------- */
+/* ---------- Feedback on the front page: toasts, loading placeholders, the generation chip ---------- */
 
 body:has(.classic) .toast {
   border-radius: var(--radius-sm);
@@ -903,24 +505,8 @@ body:has(.classic) .toast-error {
   border-radius: 8px;
 }
 
-.classic .sk-pill,
-.classic .sk-round {
+.classic .sk-pill {
   border-radius: 999px;
-}
-
-.classic .sk-dot {
-  border-radius: 50%;
-}
-
-.cl-contents .sk-contents-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 14px;
-  padding: 16px 0;
-}
-
-.cl-contents .sk-contents-row .bone-line {
-  font-size: 18px;
 }
 
 body:has(.classic) .run-chip {

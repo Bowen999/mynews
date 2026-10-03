@@ -12,7 +12,7 @@ export default function NotFound() {
         <p className="dek">The page may have been removed, belongs to another account, or the link is incomplete.</p>
         <div className="actions">
           <Link className="btn btn-solid" href="/">
-            Back to today <span className="arrow">→</span>
+            Back to the front page <span className="arrow">→</span>
           </Link>
         </div>
       </section>

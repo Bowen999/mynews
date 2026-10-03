@@ -1,4 +1,5 @@
 import { STAGES } from "@/lib/types";
+import { HomeHero } from "./HomeHero";
 import { PAGE_HEADS, PageHead } from "./PageHead";
 import { PageTransition } from "./PageTransition";
 
@@ -58,46 +59,23 @@ function FormSectionSkeleton({ rows = 2 }: { rows?: number }) {
   );
 }
 
-/** The home page, in its classic card design. */
+/** The front page: its introduction is fixed, so only the buttons wait for the account. */
 export function HomeSkeleton() {
   return (
     <Shell classic>
-      <section className="cl-cover">
-        <div className="cl-kicker">
-          <Bone w={240} h={12} className="sk-round" />
-        </div>
-        <h1>
-          <Lines widths={["70%", "48%"]} />
-        </h1>
-        <p className="cl-dek">
-          <Lines widths={["94%", "88%", "62%"]} />
-        </p>
-        <div className="cl-actions">
-          <Bone w={260} h={52} className="sk-pill" />
-          <Bone w={240} h={52} className="sk-pill" />
-        </div>
-      </section>
-      <div className="cl-section-head">
-        <h2>In this edition</h2>
-      </div>
-      <div className="cl-contents">
-        <ol>
-          {Array.from({ length: 6 }, (_, i) => (
-            <li key={i} className="sk-contents-row">
-              <Bone w={26} h={26} className="sk-dot" />
-              <span>
-                <Bone w={90} h={10} />
-                <Lines widths={[i % 2 ? "84%" : "92%", i % 3 ? "46%" : "70%"]} />
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <HomeHero
+        actions={
+          <>
+            <Bone w={250} h={52} className="sk-pill" />
+            <Bone w={230} h={52} className="sk-pill" />
+          </>
+        }
+      />
     </Shell>
   );
 }
 
-/** An edition (Today and archive editions): masthead, top story and the numbered index. */
+/** An edition: masthead, top story and the numbered index. */
 export function EditionSkeleton() {
   return (
     <Shell label="Loading the edition">

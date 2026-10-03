@@ -204,7 +204,8 @@ src/lib/accounts.ts   per-account profiles and ownership checks; src/lib/quota.t
 src/lib/render/       standalone HTML edition renderer
 src/components/       editorial UI: edition index, story article, progress, profile & settings, auth forms; feedback
                       (toasts, navigation progress bar, loading skeletons, page transitions) and the run driver
-src/app/(home)/       the home page (classic card design, src/app/classic.css); /today shows the latest edition.
+src/app/(home)/       the front page: an introduction to the app (classic card design, src/app/classic.css), with
+                      buttons into the latest edition, generation and the profile.
                       Pages with child routes keep page + loading skeleton in a route group ((home), (archive),
                       (edition)) so a parent's skeleton never stands in for a child page
 src/app/admin/        admin page: problems, which keys the deployment sees, services, usage
