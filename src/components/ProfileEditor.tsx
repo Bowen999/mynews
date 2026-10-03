@@ -39,11 +39,11 @@ const MAX_SOURCES = 12;
 function sourceProblem(input: string, sources: Profile["sources"]): string | null {
   const url = normalizeUserUrl(input);
   if (!url || /\s/.test(input.trim()) || !/\.[a-z0-9-]{2,}$/i.test(new URL(url).hostname)) {
-    return "Enter a web address, such as https://scholar.google.com/citations?user=…";
+    return "Enter a web address.";
   }
-  if (isGitHub(url)) return "GitHub pages are excluded. Add another page about you.";
-  if (sources.some((s) => normalizeUserUrl(s.url) === url)) return "This page is already in your sources.";
-  if (sources.length >= MAX_SOURCES) return `You can add up to ${MAX_SOURCES} sources.`;
+  if (isGitHub(url)) return "GitHub pages aren’t supported.";
+  if (sources.some((s) => normalizeUserUrl(s.url) === url)) return "Already added.";
+  if (sources.length >= MAX_SOURCES) return `Up to ${MAX_SOURCES} sources.`;
   return null;
 }
 
@@ -54,7 +54,7 @@ function sourceProblem(input: string, sources: Profile["sources"]): string | nul
 function useLeaveGuard(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    const description = "You have unsaved changes on your profile.";
+    const description = "Unsaved profile changes.";
     setUnsavedChanges(description);
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -162,9 +162,9 @@ function PasswordChange({ hasPassword }: { hasPassword: boolean }) {
       if (!res.ok) throw new Error(data.error ?? "Could not update the password.");
       setPw("");
       setVisible(false);
-      toast.success(hasPassword ? "Password updated." : "Password saved. You can also sign in with your email and this password.");
+      toast.success(hasPassword ? "Password updated." : "Password saved.");
     } catch (e) {
-      setError(e instanceof TypeError ? "Could not reach the server. Check your connection and try again." : (e as Error).message);
+      setError(e instanceof TypeError ? "Can’t reach the server. Try again." : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -208,7 +208,7 @@ function PasswordChange({ hasPassword }: { hasPassword: boolean }) {
           {error}
         </p>
       ) : (
-        <small>{hasPassword ? "At least 8 characters." : "Optional: set one to also sign in with your email. At least 8 characters."}</small>
+        <small>{hasPassword ? "At least 8 characters." : "Optional. Lets you also sign in with email."}</small>
       )}
     </div>
   );
@@ -321,10 +321,10 @@ export function ProfileEditor({
       if (!res.ok) throw new Error(data.error ?? "Save failed. Try again.");
       setProfile(data.profile);
       setSaved(data.profile);
-      setMessage({ kind: "ok", text: "Saved. Your interest profile updates on the next generation." });
+      setMessage({ kind: "ok", text: "Saved." });
       router.refresh();
     } catch (e) {
-      setMessage({ kind: "error", text: e instanceof TypeError ? "Could not reach the server. Your changes are still here; try again." : (e as Error).message });
+      setMessage({ kind: "error", text: e instanceof TypeError ? "Can’t reach the server. Try again." : (e as Error).message });
     } finally {
       setSaving(false);
     }
@@ -339,7 +339,7 @@ export function ProfileEditor({
     <>
       <Section
         title="Reference sources"
-        hint="Pages that describe you: personal homepage, Google Scholar, ORCID, lab or company pages, public bios. They are re-read on every generation. GitHub is excluded."
+        hint="Pages about you: homepage, Google Scholar, ORCID, lab page."
       >
         {profile.sources.length > 0 ? (
           <ul className="source-list">
@@ -359,7 +359,7 @@ export function ProfileEditor({
           </ul>
         ) : (
           <div className="notice warn">
-            <strong>No sources yet.</strong> Add at least one URL, then save, to generate your first briefing.
+            <strong>No sources yet.</strong> Add one, then save.
           </div>
         )}
         <div className="row">
@@ -397,14 +397,12 @@ export function ProfileEditor({
           </p>
         ) : (
           <p className="form-ok">
-            {profile.sources.length >= MAX_SOURCES
-              ? `That’s the maximum of ${MAX_SOURCES} sources. Remove one to add another.`
-              : `${profile.sources.length} of ${MAX_SOURCES} sources. Press Enter to add.`}
+            {profile.sources.length} of {MAX_SOURCES} sources
           </p>
         )}
       </Section>
 
-      <Section title="Preferences" hint="What the briefing covers and how it reads. Story feedback (“more / less like this”) is applied automatically.">
+      <Section title="Preferences" hint="What it covers and how it reads.">
         <div className="field">
           <span>Briefing language</span>
           <div className="toggles" role="group" aria-label="Briefing language">
@@ -445,7 +443,7 @@ export function ProfileEditor({
             className="textarea"
             value={prefs.notes}
             onChange={(e) => setPrefs({ notes: e.target.value })}
-            placeholder="e.g. I am hiring a postdoc; prioritize funding calls in Canada; I care about clinical translation."
+            placeholder="e.g. Hiring a postdoc; favour funding calls in Canada."
           />
         </label>
         <label className="field">
@@ -456,33 +454,30 @@ export function ProfileEditor({
             onChange={(e) => setPrefs({ semanticScholarAuthorId: e.target.value || undefined })}
             placeholder="1741101 or https://www.semanticscholar.org/author/…"
           />
-          <small>
-            Optional. Usually found automatically from your Google Scholar profile or homepage; set it if the match below is wrong. It powers
-            “papers citing your work”, co-author tracking and paper recommendations.
-          </small>
+          <small>Optional. Only if the match below is wrong.</small>
         </label>
       </Section>
 
       <Section
         title="Watchlist"
-        hint="Exact names and feeds to follow every week. Matches get a ranking bonus and are searched directly."
+        hint="Names and feeds to follow every week."
       >
         <div className="field">
           <span>Names to watch</span>
-          <TagInput value={prefs.watchTerms ?? []} onChange={(v) => setPrefs({ watchTerms: v })} placeholder="e.g. Daniel Okafor, Northwind Biosciences, ERC Starting Grant" />
+          <TagInput value={prefs.watchTerms ?? []} onChange={(v) => setPrefs({ watchTerms: v })} placeholder="e.g. Northwind Biosciences" />
         </div>
         <div className="field">
           <span>Feeds</span>
           <TagInput
             value={prefs.watchFeeds ?? []}
             onChange={(v) => setPrefs({ watchFeeds: v.slice(0, 10) })}
-            placeholder="RSS or Atom URL: lab news, a journal’s table of contents, a blog"
+            placeholder="RSS or Atom feed URL"
           />
-          <small>Up to 10. Only entries from the past 7 days are used.</small>
+          <small>Up to 10.</small>
         </div>
       </Section>
 
-      <Section title="Notifications" hint="Get a push notification when a briefing starts, needs your input, finishes or fails. Install the free ntfy app and subscribe to your topic.">
+      <Section title="Notifications" hint="Push alerts through the free ntfy app.">
         <label className="field">
           <span>Your ntfy topic</span>
           <input
@@ -491,7 +486,7 @@ export function ProfileEditor({
             onChange={(e) => setPrefs({ ntfyTopic: e.target.value || undefined })}
             placeholder="a-hard-to-guess-topic-name"
           />
-          <small>A topic name (letters, digits, - and _) or an https://ntfy.sh/… link. Anyone who knows the name can read it, so pick something unique.</small>
+          <small>Letters, digits, - and _. Make it hard to guess.</small>
         </label>
       </Section>
 
@@ -510,7 +505,7 @@ export function ProfileEditor({
         </button>
       </div>
 
-      <Section title="Interest profile" hint="Built from your sources by the language model and refreshed when they change.">
+      <Section title="Interest profile" hint="Built from your sources.">
         {interest ? (
           <>
             <p className="dek" style={{ color: "var(--ink)" }}>
@@ -556,7 +551,7 @@ export function ProfileEditor({
                 ) : (
                   "Not matched on Semantic Scholar"
                 )}
-                {interest.scholar?.citesIds?.length ? ` · new Google Scholar citations of ${interest.scholar.citesIds.length} papers are tracked` : ""}
+                {interest.scholar?.citesIds?.length ? ` · citations of ${interest.scholar.citesIds.length} papers tracked` : ""}
                 {interest.scholar?.note ? ` — ${interest.scholar.note}` : ""}
               </dd>
               <dt>Semantic profile</dt>
@@ -583,11 +578,11 @@ export function ProfileEditor({
             </dl>
           </>
         ) : (
-          <p className="body muted">Your interest profile is built from your sources the first time you generate a briefing.</p>
+          <p className="body muted">Built with your first briefing.</p>
         )}
       </Section>
 
-      <Section title="Reading" hint="What you open and rate teaches the ranking. Nothing is shared with other accounts.">
+      <Section title="Reading" hint="What you read tunes the ranking. Private to you.">
         <dl className="kv">
           <dt>Last 90 days</dt>
           <dd>
@@ -606,7 +601,7 @@ export function ProfileEditor({
         </dl>
       </Section>
 
-      <Section title="Usage" hint="Generations use shared search and language-model credits, so each account has a weekly allowance.">
+      <Section title="Usage" hint="Briefings per rolling week.">
         <div className="usage">
           <span className="big">{usage.used}</span>
           <span className="meta">
@@ -618,7 +613,7 @@ export function ProfileEditor({
         </div>
       </Section>
 
-      <Section title="Account" hint={account.authKind === "local" ? "Local development accounts (no email)." : undefined}>
+      <Section title="Account" hint={account.authKind === "local" ? "Local development account." : undefined}>
         <dl className="kv">
           <dt>Email</dt>
           <dd>

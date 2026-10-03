@@ -73,7 +73,7 @@ export default async function AdminPage() {
 
       <Section
         title="Keys"
-        hint="Whether this deployment can read each variable (values are never shown). After adding or changing one in Vercel, redeploy: running deployments keep the old values."
+        hint="Values are never shown. Redeploy after changing one."
       >
         <dl className="kv keys">
           <dt>Environment</dt>
@@ -103,7 +103,7 @@ export default async function AdminPage() {
           <dt>Sign-in</dt>
           <dd>
             {hasSupabaseAuth()
-              ? ["email", ...oauth].map(providerLabel).join(" · ") + (oauth.length ? "" : " (enable GitHub or Google in Supabase Auth to add buttons)")
+              ? ["email", ...oauth].map(providerLabel).join(" · ") + (oauth.length ? "" : " (GitHub and Google: enable in Supabase Auth)")
               : "Local development accounts (email only)"}
           </dd>
           <dt>Owner notifications</dt>

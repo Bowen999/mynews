@@ -42,10 +42,7 @@ interface Cover {
 function fallbackCover(items: BriefingItem[]): Cover {
   return {
     headline: items[0]?.title ?? "Your weekly briefing",
-    dek: items
-      .slice(0, 3)
-      .map((i, idx) => `${i.title} [${idx + 1}]`)
-      .join(" · "),
+    dek: "",
     themes: [...new Set(items.map((i) => CATEGORY_META[i.category].label))].slice(0, 4),
   };
 }

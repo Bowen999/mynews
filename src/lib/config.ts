@@ -279,12 +279,12 @@ export function configurationProblems(): RequiredInput[] {
     const similar = similarEnvNames(/DEEP.?SEEK/i).filter((n) => !["DEEPSEEK_MODEL", "DEEPSEEK_THINKING", "DEEPSEEK_BASE_URL"].includes(n));
     problems.push({
       key: "DEEPSEEK_API_KEY",
-      message: "This deployment cannot see a DeepSeek API key.",
+      message: "No DeepSeek API key.",
       action: [
-        "In Vercel → Project → Settings → Environment Variables, add DEEPSEEK_API_KEY",
-        config.onVercel ? `and tick the ${deploymentEnvironment()} environment.` : "(locally: put it in .env.local).",
-        "Then redeploy (Deployments → ⋯ → Redeploy): a variable only reaches deployments created after it was saved.",
-        similar.length ? `Found ${similar.join(", ")}; rename it to DEEPSEEK_API_KEY.` : "",
+        config.onVercel
+          ? `Add DEEPSEEK_API_KEY in Vercel (Settings → Environment Variables, ${deploymentEnvironment()}), then redeploy.`
+          : "Add DEEPSEEK_API_KEY to .env.local.",
+        similar.length ? `Rename ${similar.join(", ")} to DEEPSEEK_API_KEY.` : "",
       ]
         .filter(Boolean)
         .join(" "),
@@ -293,15 +293,15 @@ export function configurationProblems(): RequiredInput[] {
   if (config.onVercel && !hasSupabase()) {
     problems.push({
       key: "SUPABASE",
-      message: "Supabase is not configured, so briefings cannot be saved on Vercel.",
-      action: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, run the SQL files in supabase/migrations/, then redeploy.",
+      message: "Supabase is not configured.",
+      action: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, run supabase/migrations/, then redeploy.",
     });
   }
   if (config.onVercel && !hasSupabaseAuth()) {
     problems.push({
       key: "SUPABASE_AUTH",
       message: "Sign-in is not configured.",
-      action: "Set SUPABASE_ANON_KEY (Project Settings → API → anon / publishable key) and redeploy.",
+      action: "Set SUPABASE_ANON_KEY and redeploy.",
     });
   }
   return problems;
@@ -311,32 +311,26 @@ export function configurationProblems(): RequiredInput[] {
 export function configurationAdvisories(): string[] {
   const notes: string[] = [];
   if (config.mockMode) {
-    notes.push("MOCK_MODE is on: the pipeline uses built-in sample data and a mock LLM. Do not use for real briefings.");
+    notes.push("MOCK_MODE is on: sample data and a mock model.");
     return notes;
   }
   if (!webSearchProviders().length) {
-    notes.push(
-      "No web search API key configured (TAVILY_API_KEY recommended). Using free sources only (Semantic Scholar, Europe PMC, arXiv, Google Scholar, news RSS), so WeChat, patents, jobs and events coverage will be limited.",
-    );
+    notes.push("No web search key (TAVILY_API_KEY recommended): WeChat, patents, jobs and events are barely covered.");
   }
   if (!config.search.jinaKey) {
-    notes.push(
-      "JINA_API_KEY not set: semantic ranking (embeddings) is off and stories are matched to your profile by keywords only. Google Scholar and page reading also run on Jina's low keyless limit. Get a free key at jina.ai.",
-    );
+    notes.push("No JINA_API_KEY: ranking uses keywords only. Free key at jina.ai.");
   }
   if (!config.search.semanticScholarKey) {
-    notes.push(
-      "Optional: SEMANTIC_SCHOLAR_API_KEY not set. Semantic Scholar works without a key on a shared, often busy rate limit; a free key (semanticscholar.org/product/api) makes paper search, citation tracking and recommendations reliable.",
-    );
+    notes.push("Optional: a free SEMANTIC_SCHOLAR_API_KEY makes paper search more reliable.");
   }
   if (!hasSupabase()) {
-    notes.push("Supabase not configured: editions are stored on the local filesystem (.data/). Fine for local use only.");
+    notes.push("No Supabase: editions are stored in .data/ (local use only).");
   }
   if (!config.auth.adminEmails.length) {
-    notes.push("ADMIN_EMAILS not set: no account has admin rights (unlimited generations, system status).");
+    notes.push("ADMIN_EMAILS not set: no admin accounts.");
   }
   if (!hasSupabaseAuth()) {
-    notes.push("Supabase Auth not configured: accounts are stored locally (.data/). Fine for local development only.");
+    notes.push("No Supabase Auth: accounts are stored in .data/ (local use only).");
   }
   return notes;
 }

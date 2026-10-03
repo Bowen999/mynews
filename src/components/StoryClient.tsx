@@ -79,14 +79,14 @@ export function FeedbackButtons({ editionId, itemId, initial }: { editionId: str
       if (!res.ok) throw new Error();
       toast.success(
         next === 1
-          ? "Noted. Future briefings will include more stories like this."
+          ? "Noted: more like this."
           : next === -1
-            ? "Noted. Future briefings will show fewer stories like this."
+            ? "Noted: less like this."
             : "Feedback removed.",
       );
     } catch {
       setSignal(prev);
-      toast.error("Couldn’t save your feedback. Check your connection and try again.");
+      toast.error("Couldn’t save. Try again.");
     } finally {
       setPending(false);
     }

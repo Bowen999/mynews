@@ -7,5 +7,5 @@ export const metadata: Metadata = { title: "New password" };
 
 export default async function NewPasswordPage() {
   await requirePageUser("/account/password");
-  return <AuthPage mode="reset" statement="Almost there." dek="Choose a new password for your account." />;
+  return <AuthPage mode="reset" statement="Almost there." dek="Choose a new password." />;
 }

@@ -1,7 +1,7 @@
 const STEPS = [
-  ["1", "Tell it who you are", "Add your homepage, Google Scholar, lab or company pages. An interest profile is built from them."],
-  ["2", "Generate on demand", "It searches the previous seven days, clusters duplicates, and scores relevance, impact, novelty, credibility and value."],
-  ["3", "Read your edition", "Ten verified stories, each with why it matters, key facts, sources and an expandable analysis."],
+  ["1", "Tell it who you are", "Add pages about your work."],
+  ["2", "Generate on demand", "It searches the past seven days."],
+  ["3", "Read your edition", "Ten verified stories, with sources."],
 ];
 
 /**
@@ -16,10 +16,7 @@ export function HomeHero({ actions }: { actions: React.ReactNode }) {
           Weekly Intelligence Briefing
         </div>
         <h1>Your week, distilled to ten stories.</h1>
-        <p>
-          Papers, news, funding, events, patents, jobs and WeChat posts from the past seven days, ranked for you and written with every claim
-          linked to its source.
-        </p>
+        <p>The past seven days, ranked for you. Every claim sourced.</p>
         <div className="cl-actions">{actions}</div>
       </section>
       <div className="cl-steps" id="how-it-works">

@@ -18,8 +18,7 @@ export function AuthPage({
     <Page>
       <div className="split">
         <div className="statement">
-          <div className="label">MyNews</div>
-          <h1 className="display" style={{ marginTop: 24, maxWidth: "11ch" }}>
+          <h1 className="display" style={{ maxWidth: "11ch" }}>
             {statement}
           </h1>
           <p className="dek" style={{ marginTop: 26, maxWidth: "34ch" }}>

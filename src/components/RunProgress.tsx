@@ -75,9 +75,9 @@ export function RunProgress({ initial }: { initial: RunView }) {
   const retry = async () => {
     setRetrying(true);
     try {
-      if ((await retryRun(run)) === "needs_input") toast.error("Still waiting for your input. See what’s needed below.");
+      if ((await retryRun(run)) === "needs_input") toast.error("Still waiting for your input.");
     } catch (e) {
-      toast.error(e instanceof TypeError ? "Could not reach the server. Check your connection and try again." : (e as Error).message);
+      toast.error(e instanceof TypeError ? "Can’t reach the server. Try again." : (e as Error).message);
     } finally {
       setRetrying(false);
     }
@@ -102,12 +102,12 @@ export function RunProgress({ initial }: { initial: RunView }) {
         <h1 className="title-xl">{title}</h1>
         <p className="dek">
           {run.status === "running"
-            ? "Searching the past seven days, verifying sources and writing your top ten. This usually takes two to five minutes. You can keep reading other pages meanwhile; closing this tab pauses it until you come back."
+            ? "Usually 2–5 minutes. Keep browsing if you like; closing this tab pauses it."
             : run.status === "completed"
               ? "Opening your new edition…"
               : run.status === "needs_input"
-                ? "Something needs your attention before the briefing can continue."
-                : "The run is saved. You can resume from the step that stopped."}
+                ? "Something needs your attention."
+                : "Progress is saved. Resume from the step that stopped."}
         </p>
       </header>
 
@@ -156,7 +156,7 @@ export function RunProgress({ initial }: { initial: RunView }) {
       <div className="notices">
         {run.status === "completed" && run.editionId && (
           <div className="notice">
-            <strong>Edition ready.</strong> Your top stories for the week have been written and verified.
+            <strong>Edition ready.</strong>
             <div style={{ marginTop: 14 }}>
               <Link className="btn btn-solid" href={`/editions/${run.editionId}`}>
                 Read the edition <span className="arrow">→</span>
@@ -193,7 +193,7 @@ export function RunProgress({ initial }: { initial: RunView }) {
         )}
         {netError && run.status === "running" && (
           <div className="notice error" role="alert">
-            <strong>Lost connection to the generator ({netError}).</strong> The run is saved and continues from where it stopped.
+            <strong>Lost connection ({netError}).</strong> Progress is saved.
             <div style={{ marginTop: 14 }}>
               <button type="button" className="btn btn-solid btn-sm" onClick={() => watchRun(run)}>
                 Reconnect

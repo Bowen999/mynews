@@ -92,16 +92,11 @@ body:has(.classic) .site-header .bar {
   height: 60px;
 }
 
-body:has(.classic) .wordmark {
+body:has(.classic) .site-header .wordmark {
   color: var(--text);
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.03em;
-}
-
-body:has(.classic) .wordmark::after {
-  content: ".";
-  color: var(--accent);
 }
 
 body:has(.classic) .nav {
@@ -212,7 +207,7 @@ body:has(.classic) .site-footer {
     padding: 6px 9px;
     font-size: 13.5px;
   }
-  body:has(.classic) .wordmark,
+  body:has(.classic) .site-header .wordmark,
   body:has(.classic) .header-actions {
     flex: none;
   }
@@ -228,7 +223,7 @@ body:has(.classic) .site-footer {
   body:has(.classic) .site-header .bar {
     gap: 8px;
   }
-  body:has(.classic) .wordmark {
+  body:has(.classic) .site-header .wordmark {
     font-size: 19px;
   }
   body:has(.classic) .nav a {

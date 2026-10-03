@@ -31,8 +31,8 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
         </h1>
         <p className="dek">
           {online
-            ? "A temporary problem stopped it from loading. Your briefings and settings are saved; trying again usually works."
-            : "Check your connection, then try again. Your briefings and settings are saved."}
+            ? "A temporary problem. Your data is safe; try again."
+            : "Check your connection and try again."}
         </p>
         <div className="actions">
           <button

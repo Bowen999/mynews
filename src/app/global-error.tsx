@@ -25,7 +25,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
       <body>
         <main>
           <h1>MyNews didn’t load.</h1>
-          <p>A temporary problem stopped the site from loading. Your briefings and settings are saved; trying again usually works.</p>
+          <p>A temporary problem. Your data is safe; try again.</p>
           <div className="row">
             <button type="button" onClick={() => retry()}>
               Try again

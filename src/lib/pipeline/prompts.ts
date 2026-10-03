@@ -173,7 +173,7 @@ ${input.items}
 Return JSON:
 {
   "headline": "the week's most important development in plain words, max 70 characters, grounded in the items",
-  "dek": "2-3 short, direct sentences on what happened this week and what it means for the reader, referencing items by number in brackets like [1] [4]; no facts beyond the items",
+  "dek": "one short sentence, at most 20 words, on what the week means for the reader, referencing items by number in brackets like [1] [4]; no facts beyond the items",
   "themes": ["2-5 short theme labels"]
 }`;
 }

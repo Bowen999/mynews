@@ -14,7 +14,7 @@ const serif = Source_Serif_4({ subsets: ["latin"], style: ["normal", "italic"], 
 
 export const metadata: Metadata = {
   title: { default: "MyNews — Weekly Intelligence Briefing", template: "%s · MyNews" },
-  description: "A personalized weekly intelligence briefing: the ten things that mattered to you this week, with every claim linked to its source.",
+  description: "Your week, distilled to ten stories. Every claim sourced.",
   robots: { index: false, follow: false },
 };
 

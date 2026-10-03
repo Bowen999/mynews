@@ -33,9 +33,9 @@ export function flashMessage(key: string): string | null {
     case "signed-in":
       return `Signed in${via}.`;
     case "welcome":
-      return `Account created${via}. Add a page about you to get your first briefing.`;
+      return `Account created${via}. Add a source to begin.`;
     case "email-confirmed":
-      return "Email confirmed. Welcome to MyNews.";
+      return "Email confirmed. Welcome!";
     default:
       return null;
   }

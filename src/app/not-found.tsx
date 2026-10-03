@@ -9,7 +9,7 @@ export default function NotFound() {
         <h1 className="display" style={{ marginTop: 24 }}>
           Not in any edition.
         </h1>
-        <p className="dek">The page may have been removed, belongs to another account, or the link is incomplete.</p>
+        <p className="dek">It may have been removed, or the link is wrong.</p>
         <div className="actions">
           <Link className="btn btn-solid" href="/">
             Back to the front page <span className="arrow">→</span>

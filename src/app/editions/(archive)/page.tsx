@@ -32,7 +32,6 @@ export default async function Archive() {
         <>
           <section className="section-head" style={{ marginTop: 40 }}>
             <span className="label">Unfinished runs</span>
-            <span className="label muted">Resume where they stopped</span>
           </section>
           <ul className="runs">
             {unfinished.map((r) => (
@@ -53,7 +52,7 @@ export default async function Archive() {
 
       {editions.length === 0 ? (
         <p className="body muted" style={{ marginTop: 40 }}>
-          No editions yet. Generate your first weekly briefing to start the archive.
+          No editions yet.
         </p>
       ) : (
         <ol className="issues" style={{ listStyle: "none" }}>

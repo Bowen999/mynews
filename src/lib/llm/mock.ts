@@ -2,7 +2,7 @@
  * Deterministic offline LLM for MOCK_MODE. It only rearranges text from the context it is
  * given (sample corpus), so pipeline logic, verification and UI can be exercised without a key.
  */
-import type { BriefingItem, BriefingSource, Candidate, Category, Cluster } from "../types";
+import type { BriefingSource, Candidate, Category, Cluster } from "../types";
 import { splitSentences } from "../pipeline/verify";
 import { jaccard, tokenize } from "../util/text";
 import type { CompletionRequest, CompletionResult, LLMProvider } from "./types";
@@ -29,7 +29,7 @@ export class MockProvider implements LLMProvider {
         out = this.synthesize(ctx.cluster as Cluster, ctx.sources as BriefingSource[], ctx.members as Candidate[]);
         break;
       case "edition":
-        out = this.edition(ctx.items as BriefingItem[]);
+        out = this.edition();
         break;
       default:
         out = {};
@@ -130,13 +130,10 @@ export class MockProvider implements LLMProvider {
     };
   }
 
-  private edition(items: BriefingItem[]) {
+  private edition() {
     return {
       headline: "Single-cell lipidomics scales up",
-      dek: `Sample edition built from fictional data: ${items
-        .slice(0, 3)
-        .map((i) => `${i.title} [${i.rank}]`)
-        .join("; ")}.`,
+      dek: "Sample edition from fictional data.",
       themes: ["Single-cell methods", "Imaging", "Funding"],
     };
   }

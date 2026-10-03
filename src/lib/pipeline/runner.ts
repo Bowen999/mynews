@@ -44,7 +44,7 @@ export function databaseProblem(e: unknown): RequiredInput {
   return {
     key: "DATABASE",
     message: `Could not read from the database (${(e instanceof Error ? e.message : String(e)).slice(0, 400)}).`,
-    action: "Run the SQL files in supabase/migrations/ in the Supabase SQL editor and check SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.",
+    action: "Run supabase/migrations/ in the Supabase SQL editor and check SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.",
   };
 }
 
@@ -85,8 +85,8 @@ export async function startRun(opts: { user: AuthUser; baseUrl?: string }): Prom
   if (profile && !profile.sources.length) {
     problems.push({
       key: "SOURCES",
-      message: "No reference sources configured.",
-      action: "Add at least one URL (homepage, Google Scholar, lab or company page) on the Profile page.",
+      message: "No reference sources yet.",
+      action: "Add one on the Profile page.",
     });
   }
   if (problems.length) {

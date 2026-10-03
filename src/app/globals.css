@@ -16,6 +16,7 @@
   --invert-ink: #ffffff;
   --danger: #b3261e;
   --notice: #7a5c00;
+  --brand: #fa233b;
 
   --sans: var(--font-sans), "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
   --serif: var(--font-serif), "Iowan Old Style", Georgia, "Songti SC", "Noto Serif SC", serif;
@@ -40,6 +41,7 @@
     --invert-ink: #0f0f0f;
     --danger: #f2827a;
     --notice: #d9b54a;
+    --brand: #ff375f;
     color-scheme: dark;
   }
 }
@@ -55,6 +57,7 @@
   --invert-ink: #0f0f0f;
   --danger: #f2827a;
   --notice: #d9b54a;
+  --brand: #ff375f;
   color-scheme: dark;
 }
 
@@ -304,6 +307,13 @@ select {
   line-height: 1;
 }
 
+/* The logo is the wordmark with a red full stop, on every page. */
+.wordmark::after,
+.intro-mark::after {
+  content: ".";
+  color: var(--brand);
+}
+
 .nav {
   display: flex;
   gap: 22px;
@@ -342,12 +352,18 @@ select {
 .site-footer .wrap {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px 32px;
   padding-top: 28px;
   padding-bottom: 40px;
   font-size: 13px;
   color: var(--ink-3);
+}
+
+.site-footer .wordmark {
+  font-size: 16px;
+  color: var(--ink-2);
 }
 
 /* ---------- Buttons ---------- */
@@ -762,18 +778,6 @@ select {
   transition: opacity 0.2s;
 }
 
-.index .t .why {
-  font-family: var(--serif);
-  font-size: 17px;
-  line-height: 1.5;
-  color: var(--ink-2);
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .index .m {
   grid-column: 10 / span 3;
   display: flex;
@@ -910,14 +914,6 @@ select {
 
 .block > .content {
   grid-column: 4 / span 7;
-}
-
-.why-text {
-  font-family: var(--serif);
-  font-size: clamp(21px, 2.1vw, 27px);
-  line-height: 1.4;
-  margin: 0;
-  text-wrap: pretty;
 }
 
 .facts-list {
@@ -1811,7 +1807,7 @@ dialog.modal[open] {
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.05;
-  margin: 14px 0 6px;
+  margin: 0 0 6px;
 }
 
 .modal-body ul {

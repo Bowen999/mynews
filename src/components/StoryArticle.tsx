@@ -46,17 +46,6 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
         </div>
       </header>
 
-      {item.whyItMatters && (
-        <section className="block">
-          <h2 className="label">Why it matters to you</h2>
-          <div className="content">
-            <p className="why-text">
-              <Prose text={item.whyItMatters} />
-            </p>
-          </div>
-        </section>
-      )}
-
       <section className="block">
         <h2 className="label">Summary</h2>
         <div className="content">
@@ -169,8 +158,8 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
               {item.verification.removedClaims ? `, ${item.verification.removedClaims} removed as unsupported` : ", all matched to sources"}
             </summary>
             <ul>
-              <li>Source links come from search results, never from the model.</li>
-              <li>Numbers in generated text must appear in the cited source; otherwise the sentence is removed.</li>
+              <li>Links come from search results, not the model.</li>
+              <li>Numbers not found in the cited source are removed.</li>
               {item.verification.notes.map((n, i) => (
                 <li key={i}>{n}</li>
               ))}
@@ -211,7 +200,7 @@ export function StoryArticle({ edition, item, feedback }: { edition: Edition; it
         )}
       </nav>
       <p className="pager-hint">
-        Tip: press <kbd>←</kbd> or <kbd>→</kbd> for the previous or next story.
+        <kbd>←</kbd> <kbd>→</kbd> to switch stories
       </p>
     </article>
     </ReadTracker>

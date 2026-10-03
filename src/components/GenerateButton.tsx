@@ -25,8 +25,7 @@ export function BlockerDialog({ blocker, onClose }: { blocker: Blocker | null; o
   return (
     <dialog ref={ref} className="modal" onClose={onClose} onClick={(e) => e.target === ref.current && ref.current?.close()}>
       <div className="modal-body">
-        <div className="label muted">{blocker?.title === "Limit reached" ? "Usage limit" : "Input required"}</div>
-        <h2>{blocker?.title === "Limit reached" ? "You’ve reached this week’s limit" : "Before we can write your briefing"}</h2>
+        <h2>{blocker?.title === "Limit reached" ? "Weekly limit reached" : blocker?.title === "Error" ? "Couldn’t start" : "Input needed"}</h2>
         <ul>
           {blocker?.inputs.map((i) => (
             <li key={i.key}>
@@ -66,24 +65,24 @@ export function GenerateButton({
   const busy = requesting || navigating;
 
   const start = async () => {
-    if (busy || !confirmUnsaved("The briefing uses your saved profile. Generate anyway?")) return;
+    if (busy || !confirmUnsaved("Generate with the saved profile?")) return;
     setRequesting(true);
     try {
       const res = await fetch("/api/runs", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        toast("Your session ended. Sign in to generate a briefing.");
+        toast("Session ended. Please sign in again.");
         startNavigationProgress();
         startTransition(() => router.push("/login?next=/"));
       } else if (res.status === 409 || res.status === 429) setBlocker({ title: data.error, inputs: data.requiredInputs ?? [] });
       else if (!res.ok) setBlocker({ title: "Error", inputs: [{ key: "ERROR", message: data.error ?? "Could not start." }] });
       else {
-        if (data.resumed) toast("A briefing is already being generated. Here is its progress.");
+        if (data.resumed) toast("Already generating. Here’s its progress.");
         startNavigationProgress();
         startTransition(() => router.push(`/runs/${data.run.id}`));
       }
     } catch {
-      toast.error("Could not reach the server. Check your connection and try again.");
+      toast.error("Can’t reach the server. Try again.");
     } finally {
       setRequesting(false);
     }

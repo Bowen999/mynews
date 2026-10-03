@@ -165,7 +165,6 @@ export function StorySkeleton() {
         </div>
       </header>
       {[
-        ["Why it matters to you", ["96%", "90%", "48%"], "why-text"],
         ["Summary", ["98%", "95%", "97%", "60%"], "body"],
         ["Key facts", ["90%", "84%", "70%"], "body"],
       ].map(([label, widths, cls]) => (
@@ -267,8 +266,7 @@ export function AuthSkeleton() {
     <Shell>
       <div className="split">
         <div className="statement">
-          <div className="label">MyNews</div>
-          <h1 className="display" style={{ marginTop: 24 }}>
+          <h1 className="display">
             <Lines widths={["70%", "50%"]} />
           </h1>
           <p className="dek" style={{ marginTop: 26, maxWidth: "34ch" }}>

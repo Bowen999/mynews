@@ -14,7 +14,7 @@ export default async function SignupPage() {
     <AuthPage
       mode="signup"
       statement="Your week, distilled."
-      dek="Create an account, add the pages that describe your work, and get ten verified stories from the past seven days, every statement linked to its source."
+      dek="Ten verified stories a week, picked for your work."
       providers={providers}
     />
   );

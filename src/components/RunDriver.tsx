@@ -157,7 +157,7 @@ export function RunIndicator() {
     if (run.status === "completed" && run.editionId) {
       toast.success("Your weekly briefing is ready.", { duration: 12000, action: { label: "Read it", onClick: open(`/editions/${run.editionId}`) } });
     } else if (run.status === "needs_input") {
-      toast.error("Your briefing needs your input to continue.", { action: { label: "Details", onClick: open(href) } });
+      toast.error("Your briefing needs your input.", { action: { label: "Details", onClick: open(href) } });
     } else if (run.status === "failed") {
       toast.error(`Generation stopped${run.error ? `: ${run.error}` : "."}`, { action: { label: "Details", onClick: open(href) } });
     }

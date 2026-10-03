@@ -120,7 +120,7 @@ export function AuthForm({ mode, providers = [] }: { mode: Mode; providers?: OAu
         return;
       }
       toast.success(
-        mode === "login" ? "Signed in." : mode === "signup" ? "Account created. Add a page about you to get your first briefing." : "Password updated.",
+        mode === "login" ? "Signed in." : mode === "signup" ? "Account created. Add a source to begin." : "Password updated.",
       );
       startNavigationProgress();
       startTransition(() => {
@@ -128,7 +128,7 @@ export function AuthForm({ mode, providers = [] }: { mode: Mode; providers?: OAu
         router.refresh();
       });
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError("Can’t reach the server. Try again.");
     } finally {
       setRequesting(false);
     }
@@ -141,14 +141,14 @@ export function AuthForm({ mode, providers = [] }: { mode: Mode; providers?: OAu
         <p className="auth-sent">
           {mode === "forgot" ? (
             <>
-              If an account exists for <b>{sentTo}</b>, a link to choose a new password is on its way.
+              If <b>{sentTo}</b> has an account, a reset link is on its way.
             </>
           ) : (
             <>
-              We sent a confirmation link to <b>{sentTo}</b>. Open it to finish creating your account.
+              Open the link we sent to <b>{sentTo}</b> to finish.
             </>
           )}{" "}
-          It can take a minute to arrive; check your spam folder too.
+          Not there? Check spam.
         </p>
         <p className="alt">
           <button type="button" className="link-button" onClick={() => setSentTo(null)}>

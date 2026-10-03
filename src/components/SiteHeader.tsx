@@ -44,8 +44,8 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="wrap">
-        <span>MyNews — a personal weekly intelligence briefing.</span>
-        <span>Every statement links to its source.</span>
+        <span className="wordmark">MyNews</span>
+        <span>Every claim linked to its source.</span>
       </div>
     </footer>
   );

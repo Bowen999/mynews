@@ -87,7 +87,7 @@ export async function sourcesStage(ctx: StageContext): Promise<StageResult> {
   const sources = ctx.profile.sources.slice(0, MAX_SOURCES);
   if (!sources.length) {
     throw new NeedsInputError([
-      { key: "SOURCES", message: "No reference sources configured.", action: "Add at least one URL (homepage, Google Scholar, lab or company page) on the Profile page." },
+      { key: "SOURCES", message: "No reference sources yet.", action: "Add one on the Profile page." },
     ]);
   }
   let done = 0;
@@ -124,8 +124,8 @@ export async function sourcesStage(ctx: StageContext): Promise<StageResult> {
     throw new NeedsInputError([
       {
         key: "SOURCES_UNREADABLE",
-        message: "None of the reference sources could be read.",
-        action: "Check the URLs on the Profile page, or add a public homepage / lab page. Google Scholar often blocks servers; add another source alongside it.",
+        message: "None of your sources could be read.",
+        action: "Check them on the Profile page, or add a public homepage (Google Scholar often blocks servers).",
       },
     ]);
   }

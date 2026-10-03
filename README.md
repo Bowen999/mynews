@@ -6,7 +6,7 @@ the **10 items that matter most to that person**: papers, news, company and fund
 WeChat / 公众号 articles, patents, jobs, product launches, people updates and other high-value information.
 GitHub is excluded.
 
-Each item has a title, category, why it matters, a summary, key facts, the related sources with
+Each item has a title, category, a summary, key facts, the related sources with
 publication dates and links, a relevance/importance breakdown, and an expandable detailed analysis.
 Every statement carries a citation to a numbered source. Source links always come from search results,
 never from the model. Generated claims that can't be matched to a source are removed automatically.

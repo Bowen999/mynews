@@ -53,7 +53,7 @@ export function AccountMenu({ email, isAdmin }: { email: string; isAdmin: boolea
         router.refresh();
       });
     } catch {
-      toast.error("Could not sign out. Check your connection and try again.");
+      toast.error("Couldn’t sign out. Try again.");
     } finally {
       setRequesting(false);
     }

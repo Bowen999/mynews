@@ -62,7 +62,6 @@ function renderItem(it: BriefingItem): string {
   <div class="kicker"><span>${pad(it.rank)}</span><span>${escapeHtml(categoryLabel(it.category))}</span></div>
   <h3>${escapeHtml(it.title)}</h3>
   <p class="meta">${escapeHtml(meta)}</p>
-  ${it.whyItMatters ? `<div class="block"><h4>Why it matters</h4><p class="why">${prose(it.whyItMatters, it.rank)}</p></div>` : ""}
   <div class="block"><h4>Summary</h4><p>${prose(it.summary, it.rank)}</p></div>
   ${facts}
   <div class="block"><h4>Why it ranks</h4><div><div class="bars">${bars}</div>${
@@ -74,15 +73,15 @@ function renderItem(it: BriefingItem): string {
 }
 
 const CSS = `
-:root{--bg:#fff;--ink:#111;--ink2:#545454;--ink3:#8c8c8c;--hair:#e2e2e0;--wash:#f5f5f3;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;color-scheme:dark}}
-:root[data-theme=dark]{--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;color-scheme:dark}
+:root{--bg:#fff;--ink:#111;--ink2:#545454;--ink3:#8c8c8c;--hair:#e2e2e0;--wash:#f5f5f3;--brand:#fa233b;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;--brand:#ff375f;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#0f0f0f;--ink:#f1f1ef;--ink2:#a9a9a6;--ink3:#74746f;--hair:#2a2a28;--wash:#181817;--brand:#ff375f;color-scheme:dark}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Inter Tight","Helvetica Neue",Helvetica,Arial,"PingFang SC","Noto Sans SC",sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:980px;margin:0 auto;padding:0 20px}
 header.top{display:flex;justify-content:space-between;align-items:center;height:60px;border-bottom:1px solid var(--hair)}
-.brand{font-weight:700;font-size:21px;letter-spacing:-.04em}
+.brand{font-weight:700;font-size:21px;letter-spacing:-.04em}.brand::after{content:".";color:var(--brand)}
 button.theme{border:1px solid var(--hair);background:none;color:var(--ink2);padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
 .label,.kicker,h4{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .cover{padding:48px 0 0}
@@ -106,7 +105,7 @@ h1{font-weight:600;font-size:clamp(40px,8vw,84px);line-height:.96;letter-spacing
 .block{display:grid;grid-template-columns:180px 1fr;gap:24px;padding:22px 0;border-top:1px solid var(--hair)}
 .block h4{margin:4px 0 0;color:var(--ink)}
 .block p,.facts li,.analysis p{font-family:"Source Serif 4",Georgia,"Songti SC",serif;font-size:18px;line-height:1.6;margin:0}
-.why{font-size:22px!important;line-height:1.42!important}
+
 .facts{margin:0;padding:0;list-style:none;counter-reset:k}
 .facts li{counter-increment:k;display:grid;grid-template-columns:36px 1fr;padding:10px 0;border-top:1px solid var(--hair)}
 .facts li:first-child{border-top:0;padding-top:0}

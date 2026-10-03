@@ -116,9 +116,9 @@ describe("DeepSeek key detection", () => {
     process.env.VERCEL_ENV = "production";
     process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY = "sk-secret-value";
     const p = configurationProblems().find((x) => x.key === "DEEPSEEK_API_KEY")!;
-    expect(p.action).toMatch(/Production environment/);
-    expect(p.action).toMatch(/Redeploy/);
-    expect(p.action).toMatch(/Found NEXT_PUBLIC_DEEPSEEK_API_KEY; rename it to DEEPSEEK_API_KEY/);
+    expect(p.action).toMatch(/Production/);
+    expect(p.action).toMatch(/redeploy/i);
+    expect(p.action).toMatch(/Rename NEXT_PUBLIC_DEEPSEEK_API_KEY to DEEPSEEK_API_KEY/);
     expect(JSON.stringify(configurationProblems())).not.toContain("sk-secret-value");
     expect(JSON.stringify(keyDiagnostics())).not.toContain("sk-secret-value");
     expect(keyDiagnostics()[0]).toMatchObject({ set: false, required: true });

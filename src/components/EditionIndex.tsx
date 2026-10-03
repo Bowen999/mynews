@@ -54,7 +54,6 @@ export function EditionIndex({ edition }: { edition: Edition }) {
       {lead && (
         <section className="section-head" aria-label="Top story" style={{ marginTop: 56 }}>
           <span className="label">Top story</span>
-          <span className="label muted">Ranked by relevance, impact, novelty, credibility and value to you</span>
         </section>
       )}
       {lead && (
@@ -69,7 +68,6 @@ export function EditionIndex({ edition }: { edition: Edition }) {
             <h2 className="title-l">
               <Link href={`${base}/${lead.rank}`}>{lead.title}</Link>
             </h2>
-            {lead.whyItMatters && <p className="dek">{plain(lead.whyItMatters)}</p>}
             <p className="body" style={{ fontSize: 17, color: "var(--ink-2)" }}>
               {plain(lead.summary)}
             </p>
@@ -112,7 +110,6 @@ export function EditionIndex({ edition }: { edition: Edition }) {
                   <span className="cat label">{categoryLabel(it.category)}</span>
                   <span className="t">
                     <span className="title-m">{it.title}</span>
-                    {it.whyItMatters && <span className="why">{plain(it.whyItMatters)}</span>}
                   </span>
                   <span className="m">
                     <span>
@@ -133,7 +130,7 @@ export function EditionIndex({ edition }: { edition: Edition }) {
         <>
           <section className="section-head" aria-label="Also noted">
             <span className="label">Also noted</span>
-            <span className="label muted">Just below the top {edition.items.length} · links only</span>
+            <span className="label muted">Links only</span>
           </section>
           <ul className="noted">
             {edition.alsoNoted.map((a) => (
@@ -153,11 +150,10 @@ export function EditionIndex({ edition }: { edition: Edition }) {
 
       <footer className="colophon">
         <p>
-          Generated {new Date(edition.createdAt).toUTCString().slice(0, 22)} UTC with {edition.model.provider} ({edition.model.model}) from{" "}
-          {edition.stats.queries} searches. Every statement links to its source;{" "}
+          Generated {formatDay(edition.createdAt)} from {edition.stats.queries} searches ·{" "}
           {edition.stats.removedClaims
-            ? `${edition.stats.removedClaims} generated statement${edition.stats.removedClaims === 1 ? " was" : "s were"} removed because no source supported ${edition.stats.removedClaims === 1 ? "it" : "them"}.`
-            : "all generated statements matched their sources."}
+            ? `${edition.stats.removedClaims} unsupported statement${edition.stats.removedClaims === 1 ? "" : "s"} removed`
+            : "every statement sourced"}
         </p>
         <div className="links">
           <a className="link" href={`/editions/${edition.id}/standalone`} target="_blank" rel="noopener">

@@ -14,7 +14,7 @@ export default async function LoginPage() {
     <AuthPage
       mode="login"
       statement="Welcome back."
-      dek="Your weekly briefing is waiting: the ten things that mattered to your work in the past seven days."
+      dek="Your briefing is waiting."
       providers={providers}
     />
   );
