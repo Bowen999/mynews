@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { config } from "../config";
 import { newId } from "../util/text";
 import { isAdminEmail, normalizeEmail } from "./policy";
-import type { AuthBackend, AuthResult, AuthUser, CookieJar } from "./types";
+import type { Account, AuthBackend, AuthResult, AuthUser, CookieJar } from "./types";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
@@ -17,6 +17,26 @@ interface LocalUserRecord {
   email: string;
   passwordHash: string;
   createdAt: string;
+  lastSignInAt?: string;
+}
+
+/** The accounts in a development data directory, for the admin pages (no password hashes). */
+export async function listLocalAccounts(dataDir: string): Promise<Account[]> {
+  let users: LocalUserRecord[];
+  try {
+    users = JSON.parse(await fs.readFile(path.join(dataDir, "users.json"), "utf8")) as LocalUserRecord[];
+  } catch {
+    return [];
+  }
+  return users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    isAdmin: isAdminEmail(u.email),
+    providers: ["email"],
+    createdAt: u.createdAt,
+    lastSignInAt: u.lastSignInAt,
+    confirmed: true,
+  }));
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -114,15 +134,23 @@ export class LocalAuth implements AuthBackend {
     const e = normalizeEmail(email);
     const users = await this.users();
     if (users.some((u) => u.email === e)) return { error: "An account with this email already exists. Sign in instead." };
-    const record: LocalUserRecord = { id: newId("u"), email: e, passwordHash: await hashPassword(password), createdAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const record: LocalUserRecord = { id: newId("u"), email: e, passwordHash: await hashPassword(password), createdAt: now, lastSignInAt: now };
     await this.saveUsers([...users, record]);
     this.startSession(record.id);
     return { user: this.toUser(record) };
   }
 
   async signIn(email: string, password: string): Promise<AuthResult> {
-    const record = (await this.users()).find((u) => u.email === normalizeEmail(email));
+    const users = await this.users();
+    const record = users.find((u) => u.email === normalizeEmail(email));
     if (!record || !(await verifyPassword(password, record.passwordHash))) return { error: "Incorrect email or password." };
+    record.lastSignInAt = new Date().toISOString();
+    try {
+      await this.saveUsers(users);
+    } catch {
+      // The time is only shown to admins; never block signing in over it.
+    }
     this.startSession(record.id);
     return { user: this.toUser(record) };
   }

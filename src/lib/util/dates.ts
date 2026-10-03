@@ -81,3 +81,34 @@ export function formatRange(startIso: string, endIso: string, locale = "en-US"):
   const endStr = e.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   return sameYear ? `${startStr} – ${endStr}` : `${s.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })} – ${endStr}`;
 }
+
+/** "Sep 4, 2026" (UTC, like every date in the app). */
+export function formatDate(iso: string | undefined | null, locale = "en-US"): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 d ago"; after 30 days it is the date. */
+export function formatAgo(iso: string | undefined | null, now = Date.now(), locale = "en-US"): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < DAY / 1000) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 30 * (DAY / 1000)) return `${Math.floor(s / (DAY / 1000))} d ago`;
+  return formatDate(iso, locale);
+}
+
+/** "42 s", "3 min 12 s", "12 min", "1 h 05 min". */
+export function formatDuration(msec: number): string {
+  const s = Math.round(msec / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 10) return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
+}

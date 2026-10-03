@@ -1,5 +1,21 @@
 import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
 
+/**
+ * Slim rows for the admin pages: ids, times, statuses and counts, never briefing or profile content.
+ * Runs, editions and profiles are complete; interactions and ratings only go back to `since`.
+ */
+export interface AdminSnapshot {
+  profiles: { id: string; ownerId: string | null; createdAt: string; updatedAt: string; sources: number; interest: boolean; ntfy: boolean }[];
+  runs: { id: string; profileId: string; status: Run["status"]; stage: Run["stage"]; createdAt: string; finishedAt?: string; error?: string; editionId?: string }[];
+  editions: { id: string; profileId: string; number: number; createdAt: string; sample: boolean }[];
+  /** Stories opened and source links followed. */
+  interactions: { profileId: string; kind: Interaction["kind"]; at: string }[];
+  /** Ratings given. */
+  feedback: { profileId: string; signal: 1 | -1; at: string }[];
+  /** A table was cut at the row limit, so its oldest rows are missing. */
+  truncated: boolean;
+}
+
 export interface Store {
   readonly kind: "supabase" | "file";
 
@@ -38,6 +54,9 @@ export interface Store {
   /** Implicit feedback (story opened, source clicked). Idempotent per interaction id. */
   addInteraction(interaction: Interaction): Promise<void>;
   listInteractions(profileId: string, limit: number): Promise<Interaction[]>;
+
+  /** Everything the admin pages count, across all accounts. */
+  adminSnapshot(since: string): Promise<AdminSnapshot>;
 }
 
 export function summarizeEdition(e: Edition): EditionSummary {

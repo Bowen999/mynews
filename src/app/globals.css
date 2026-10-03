@@ -2765,6 +2765,404 @@ body:has(.save-bar) .toasts {
   }
 }
 
+/* ---------- Admin (statistics, users, system) ---------- */
+
+.subnav {
+  display: flex;
+  gap: 28px;
+  border-bottom: 1px solid var(--hair);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.subnav a {
+  padding: 16px 0 13px;
+  margin-bottom: -1px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.subnav a:hover {
+  color: var(--ink);
+}
+
+.subnav a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.page-head .back {
+  color: var(--ink-2);
+}
+
+.page-head .back:hover {
+  color: var(--ink);
+}
+
+.user-title {
+  overflow-wrap: anywhere;
+}
+
+.user-title .tag {
+  margin-left: 14px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--hair);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+
+.tag.muted {
+  color: var(--ink-3);
+}
+
+/* Large numbers with a label above and one line of context below. */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.figures[data-cols="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.figure {
+  min-width: 0;
+  padding: 26px 24px 24px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.figure .num {
+  margin: 14px 0 12px;
+  font-size: clamp(40px, 4.6vw, 62px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure .unit {
+  margin-left: 0.2em;
+  font-size: 0.4em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
+}
+
+.figure .note {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+/* Stacked bars per day. The SVG stretches to the width; text around it is HTML. */
+.chart {
+  margin: 20px 0 0;
+}
+
+.chart-plot {
+  position: relative;
+  padding-top: 20px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.chart-plot::before {
+  content: "";
+  position: absolute;
+  inset: 20px 0 auto;
+  border-top: 1px dashed var(--hair);
+}
+
+.chart-plot svg {
+  display: block;
+  width: 100%;
+  height: 168px;
+}
+
+.chart-max {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-hit {
+  fill: transparent;
+}
+
+.chart-hit:hover {
+  fill: var(--wash);
+}
+
+.bar-ok {
+  fill: var(--ink);
+}
+
+.bar-fail {
+  fill: var(--danger);
+}
+
+.bar-other {
+  fill: var(--ink-3);
+}
+
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.chart-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 7px;
+  background: var(--ink);
+}
+
+.chart-legend .fail::before {
+  background: var(--danger);
+}
+
+.chart-legend .other::before {
+  background: var(--ink-3);
+}
+
+.kv code {
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reasons li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.reasons li:first-child {
+  padding-top: 0;
+}
+
+.reasons .count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reasons .msg {
+  overflow-wrap: anywhere;
+}
+
+.reasons .meta {
+  grid-column: 2;
+  margin-top: 4px;
+  color: var(--ink-3);
+}
+
+.bars.wide .bar {
+  grid-template-columns: 150px 1fr 34px;
+}
+
+.utable-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+  padding: 24px 0 18px;
+}
+
+.utable-tools .input {
+  width: auto;
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+
+.utable-tools select.input {
+  flex: 0 1 auto;
+  max-width: none;
+}
+
+.utable-tools .meta {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.utable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.utable th {
+  padding: 10px 16px 10px 0;
+  border-bottom: 2px solid var(--rule);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.utable th small {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.utable td {
+  padding: 16px 16px 16px 0;
+  border-bottom: 1px solid var(--hair);
+  vertical-align: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.utable th:last-child,
+.utable td:last-child {
+  padding-right: 0;
+}
+
+.utable .num {
+  text-align: right;
+}
+
+.u-email {
+  font-weight: 600;
+}
+
+.u-email:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  text-decoration-thickness: 2px;
+}
+
+.u-user .meta {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.u-skel {
+  display: grid;
+  gap: 8px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+@media (max-width: 1020px) {
+  .figures,
+  .figures[data-cols="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  /* One block per user: the email, then each number with its label above it. */
+  .utable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .utable,
+  .utable tbody {
+    display: block;
+  }
+
+  .utable tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--hair);
+  }
+
+  .utable td {
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .utable td.u-user {
+    grid-column: 1 / -1;
+  }
+
+  .utable td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .utable .num {
+    text-align: left;
+  }
+}
+
+@media (max-width: 680px) {
+  .bars.wide .bar {
+    grid-template-columns: 120px 1fr 30px;
+  }
+
+  .figure {
+    padding-right: 16px;
+  }
+
+  .utable-tools .meta {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
 /* ---------- Opening animation (Intro.tsx) ---------- */
 /* Shown only while <html data-intro> is set: "wait" (font loading), "play", or "skip". The overlay
    keeps the editorial colors on every page, so it captures them from :root. */

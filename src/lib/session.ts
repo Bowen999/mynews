@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { createAuth, HttpError, type AuthBackend, type AuthUser, type CookieJar } from "./auth";
 import { isEmailAllowed } from "./auth/policy";
@@ -47,5 +47,12 @@ export async function requireUser(): Promise<AuthUser> {
 export async function requirePageUser(next: string): Promise<AuthUser> {
   const user = await currentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(next)}`);
+  return user;
+}
+
+/** For admin pages: signed-out visitors go to sign-in, and everyone who is not an admin sees a 404. */
+export async function requireAdminPage(next: string): Promise<AuthUser> {
+  const user = await requirePageUser(next);
+  if (!user.isAdmin) notFound();
   return user;
 }

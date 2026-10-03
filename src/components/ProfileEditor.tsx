@@ -627,7 +627,7 @@ export function ProfileEditor({
               <dt>Admin</dt>
               <dd>
                 <Link className="link" href="/admin">
-                  System status, keys and usage
+                  Statistics, users and system
                 </Link>
               </dd>
             </>

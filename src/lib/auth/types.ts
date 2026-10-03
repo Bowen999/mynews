@@ -8,6 +8,19 @@ export interface AuthUser {
   providers?: string[];
 }
 
+/** An account as the admin pages list it. Never carries credentials. */
+export interface Account {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  /** How it can sign in: "email", "github", "google". */
+  providers: string[];
+  createdAt: string;
+  lastSignInAt?: string;
+  /** The email address is confirmed (always true for social sign-in and local accounts). */
+  confirmed: boolean;
+}
+
 /** Minimal cookie access shared by route handlers, server components and the proxy. */
 export interface CookieJar {
   getAll(): { name: string; value: string }[];

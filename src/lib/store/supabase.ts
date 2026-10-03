@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
-import { summarizeEdition, type Store } from "./types";
+import { summarizeEdition, type AdminSnapshot, type Store } from "./types";
 
 type Row = Record<string, unknown>;
 
@@ -139,6 +139,73 @@ const rowToFeedback = (r: Row): Feedback => ({
   signal: r.signal as 1 | -1,
   createdAt: r.created_at as string,
 });
+
+/** PostgREST returns at most this many rows per request. */
+const PAGE_SIZE = 1000;
+/** Rows read per table for the admin pages; beyond this the oldest are left out. */
+const ADMIN_ROW_LIMIT = 20000;
+
+type RowPage = (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
+
+/** Reads a table page by page. Gives up at `limit` rows and reports that it did. */
+export async function fetchPages(page: RowPage, what: string, limit = ADMIN_ROW_LIMIT): Promise<{ rows: Row[]; truncated: boolean }> {
+  const rows: Row[] = [];
+  for (let from = 0; from < limit; from += PAGE_SIZE) {
+    const data = (check(await page(from, from + PAGE_SIZE - 1), what) ?? []) as Row[];
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
+
+export interface AdminRows {
+  profiles: Row[];
+  /** Ids of the profiles that have an interest profile (the column itself is large and never read). */
+  withInterest: Row[];
+  runs: Row[];
+  editions: Row[];
+  interactions: Row[];
+  feedback: Row[];
+  truncated: boolean;
+}
+
+export function adminSnapshotFromRows(r: AdminRows): AdminSnapshot {
+  const interest = new Set(r.withInterest.map((x) => x.id as string));
+  return {
+    profiles: r.profiles.map((p) => {
+      const topic = (p.preferences as { ntfyTopic?: unknown } | null)?.ntfyTopic;
+      return {
+        id: p.id as string,
+        ownerId: (p.owner_id as string | null) ?? null,
+        createdAt: p.created_at as string,
+        updatedAt: p.updated_at as string,
+        sources: Array.isArray(p.sources) ? p.sources.length : 0,
+        interest: interest.has(p.id as string),
+        ntfy: typeof topic === "string" && topic.trim() !== "",
+      };
+    }),
+    runs: r.runs.map((x) => ({
+      id: x.id as string,
+      profileId: x.profile_id as string,
+      status: x.status as Run["status"],
+      stage: x.stage as Run["stage"],
+      createdAt: x.created_at as string,
+      finishedAt: (x.finished_at as string | null) ?? undefined,
+      error: (x.error as string | null) ?? undefined,
+      editionId: (x.edition_id as string | null) ?? undefined,
+    })),
+    editions: r.editions.map((x) => ({
+      id: x.id as string,
+      profileId: x.profile_id as string,
+      number: x.number as number,
+      createdAt: x.created_at as string,
+      sample: Boolean(x.sample),
+    })),
+    interactions: r.interactions.map((x) => ({ profileId: x.profile_id as string, kind: x.kind as Interaction["kind"], at: x.created_at as string })),
+    feedback: r.feedback.map((x) => ({ profileId: x.profile_id as string, signal: x.signal as 1 | -1, at: x.created_at as string })),
+    truncated: r.truncated,
+  };
+}
 
 const EDITION_COLUMNS =
   "id,profile_id,run_id,number,headline,dek,themes,window_start,window_end,items,also_noted,stats,profile_summary,model,sample,created_at";
@@ -336,5 +403,37 @@ export class SupabaseStore implements Store {
         createdAt: r.created_at as string,
       }),
     );
+  }
+  /** Only slim columns are read (never `items`, `interest` or the logs), a page of 1000 rows at a time. */
+  async adminSnapshot(since: string): Promise<AdminSnapshot> {
+    const db = this.db;
+    const newestFirst = { ascending: false };
+    const [profiles, withInterest, runs, editions, interactions, feedback] = await Promise.all([
+      fetchPages((a, b) => db.from("profiles").select("id,owner_id,created_at,updated_at,sources,preferences").order("id").range(a, b), "adminSnapshot profiles"),
+      fetchPages((a, b) => db.from("profiles").select("id").not("interest", "is", null).order("id").range(a, b), "adminSnapshot interest"),
+      fetchPages(
+        (a, b) => db.from("runs").select("id,profile_id,status,stage,created_at,finished_at,error,edition_id").order("created_at", newestFirst).order("id").range(a, b),
+        "adminSnapshot runs",
+      ),
+      fetchPages((a, b) => db.from("editions").select("id,profile_id,number,created_at,sample").order("created_at", newestFirst).order("id").range(a, b), "adminSnapshot editions"),
+      // Added by a later migration: an older database still gets the rest of the page.
+      fetchPages(
+        (a, b) => db.from("interactions").select("profile_id,kind,created_at").gte("created_at", since).order("created_at", newestFirst).order("id").range(a, b),
+        "adminSnapshot interactions",
+      ).catch(() => ({ rows: [] as Row[], truncated: false })),
+      fetchPages(
+        (a, b) => db.from("feedback").select("profile_id,signal,created_at").gte("created_at", since).order("created_at", newestFirst).order("id").range(a, b),
+        "adminSnapshot feedback",
+      ),
+    ]);
+    return adminSnapshotFromRows({
+      profiles: profiles.rows,
+      withInterest: withInterest.rows,
+      runs: runs.rows,
+      editions: editions.rows,
+      interactions: interactions.rows,
+      feedback: feedback.rows,
+      truncated: [profiles, withInterest, runs, editions, interactions, feedback].some((t) => t.truncated),
+    });
   }
 }

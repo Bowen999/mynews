@@ -18,6 +18,8 @@ download.
 **Accounts.** Anyone you allow can create an account and get briefings about their own work, signing in with email and
 password or with GitHub or Google. Each account has its own reference sources, interest profile, editions, feedback and
 ntfy topic, and nobody can see another account's data. Weekly usage limits protect your API credits; admins are exempt.
+Admins also get an **Admin** area with statistics and the list of users; it shows counts, times and statuses, never
+another account's briefings, reference sources or ratings.
 
 - **Stack:** Next.js 16 (App Router) · Vercel · Supabase (Postgres) · DeepSeek API · Jina (embeddings + Reader) · Tavily/Exa/Serper/Brave search · Semantic Scholar, Europe PMC, arXiv & Google Scholar · ntfy.sh
 - **No self-managed server:** everything runs as Vercel functions plus a hosted Supabase database.
@@ -130,8 +132,8 @@ It never waits silently: input problems are reported both in the UI and through 
    plus `JINA_API_KEY` (recommended).
    Optionally restrict who can join with `AUTH_ALLOWED_EMAILS` / `AUTH_ALLOWED_DOMAINS`, or close sign-up with `SIGNUPS_DISABLED=1`.
    Deploy.
-7. Open the site, create your account with the email listed in `ADMIN_EMAILS` (it then has an **Admin** page under the
-   account menu that shows which keys the deployment can see), add your reference URLs on **Profile**,
+7. Open the site, create your account with the email listed in `ADMIN_EMAILS` (it then has an **Admin** area under the
+   account menu: statistics, users, and which keys the deployment can see), add your reference URLs on **Profile**,
    and press **Generate Weekly Briefing**. If you used the earlier single-user version, the first admin to sign in
    takes over its profile and editions.
 
@@ -178,7 +180,7 @@ Checks: `npm test` (unit tests plus a full 8-stage pipeline run in mock mode), `
 | `GOOGLE_SCHOLAR_DISABLED` | `1` skips Google Scholar searches (read through Jina Reader; may hit captchas). |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Storage; required on Vercel. |
 | `SUPABASE_ANON_KEY` | Sign-in (Supabase Auth, server-side only); required on Vercel. `SUPABASE_PUBLISHABLE_KEY` also works. |
-| `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, the **Admin** page (account menu → Admin, `/admin`: problems, which keys the deployment can see, services, usage), owner notifications. |
+| `ADMIN_EMAILS` | Comma-separated admin emails: no usage limits, the **Admin** area (account menu → Admin, `/admin`: statistics and a chart of generations per day, every user with their usage, and under System the problems, which keys the deployment can see and the services), owner notifications. |
 | `AUTH_ALLOWED_EMAILS`, `AUTH_ALLOWED_DOMAINS` | Optional allow-list (e.g. `ualberta.ca`). Empty means anyone may sign up. |
 | `SIGNUPS_DISABLED` | `1` closes sign-up to everyone except admins (also for GitHub / Google sign-in). |
 | `OAUTH_PROVIDERS` | Social sign-in buttons: `github,google`, `github`, or `none`. Unset: the providers enabled in Supabase Auth. |
@@ -209,7 +211,7 @@ src/app/(home)/       the front page: an introduction to the app (classic card d
                       buttons into the latest edition, generation and the profile.
                       Pages with child routes keep page + loading skeleton in a route group ((home), (archive),
                       (edition)) so a parent's skeleton never stands in for a child page
-src/app/admin/        admin page: problems, which keys the deployment sees, services, usage
+src/app/admin/        admin area: overview statistics, users (the list and one user), system (problems, keys, services)
 supabase/migrations/  database schema
 tests/                vitest suites (parsers, verification, ranking, providers, end-to-end mock pipeline)
 ```
@@ -226,7 +228,7 @@ To add a search source, implement `SearchProvider` and add it to the routing in 
   - Add a homepage alongside your Scholar profile.
   - If the automatic match is wrong, set your Semantic Scholar author ID on the Profile page.
 - **"Key is missing" after you added it:** Vercel only passes variables to deployments created after you saved them, and
-  only for the environments you ticked (Production / Preview). Redeploy (Deployments → ⋯ → Redeploy). The **Admin** page
+  only for the environments you ticked (Production / Preview). Redeploy (Deployments → ⋯ → Redeploy). The **Admin → System** page
   lists which keys the running deployment can see, by name only.
 - **WeChat and patents** are found through domain-restricted web search (`mp.weixin.qq.com`, Google Patents, WIPO…),
   so they need a search API key.

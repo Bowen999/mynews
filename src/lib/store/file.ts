@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Edition, EditionSummary, Feedback, Interaction, Profile, Run, RunSummary, SourceSnapshot } from "../types";
 import { shortHash } from "../util/text";
-import { summarizeEdition, summarizeRun, type Store } from "./types";
+import { summarizeEdition, summarizeRun, type AdminSnapshot, type Store } from "./types";
 
 const leases: Map<string, number> = ((globalThis as Record<string, unknown>).__mynewsLeases ??= new Map()) as Map<string, number>;
 
@@ -167,5 +167,31 @@ export class FileStore implements Store {
       .filter((i) => i.profileId === profileId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit);
+  }
+
+  async adminSnapshot(since: string): Promise<AdminSnapshot> {
+    const [profiles, runs, editions, interactions, feedback] = await Promise.all([
+      this.list<Profile>("profiles"),
+      this.list<Run>("runs"),
+      this.list<Edition>("editions"),
+      this.allInteractions(),
+      this.allFeedback(),
+    ]);
+    return {
+      profiles: profiles.map((p) => ({
+        id: p.id,
+        ownerId: p.ownerId ?? null,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        sources: p.sources?.length ?? 0,
+        interest: Boolean(p.interest),
+        ntfy: Boolean(p.preferences?.ntfyTopic?.trim()),
+      })),
+      runs: runs.map((r) => ({ id: r.id, profileId: r.profileId, status: r.status, stage: r.stage, createdAt: r.createdAt, finishedAt: r.finishedAt, error: r.error, editionId: r.editionId })),
+      editions: editions.map((e) => ({ id: e.id, profileId: e.profileId, number: e.number, createdAt: e.createdAt, sample: Boolean(e.sample) })),
+      interactions: interactions.filter((i) => i.createdAt >= since).map((i) => ({ profileId: i.profileId, kind: i.kind, at: i.createdAt })),
+      feedback: feedback.filter((f) => f.createdAt >= since).map((f) => ({ profileId: f.profileId, signal: f.signal, at: f.createdAt })),
+      truncated: false,
+    };
   }
 }

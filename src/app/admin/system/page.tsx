@@ -1,56 +1,29 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { AdminNav } from "@/components/AdminNav";
+import { Section } from "@/components/AdminParts";
 import { PAGE_HEADS, PageHead } from "@/components/PageHead";
 import { Page } from "@/components/PageTransition";
 import { enabledOAuthProviders } from "@/lib/auth/oauth";
 import { providerLabel } from "@/lib/auth/providers";
 import { config, deploymentEnvironment, hasSupabaseAuth, keyDiagnostics } from "@/lib/config";
-import { requirePageUser } from "@/lib/session";
+import { requireAdminPage } from "@/lib/session";
 import { systemStatus } from "@/lib/status";
-import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Admin" };
+export const metadata: Metadata = { title: "Admin · System" };
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section className="form-section">
-      <header>
-        <h2>{title}</h2>
-        {hint && <p>{hint}</p>}
-      </header>
-      <div className="fields">{children}</div>
-    </section>
-  );
-}
-
-async function usage(): Promise<{ day: number; week: number } | null> {
-  try {
-    const store = getStore();
-    const now = Date.now();
-    const [day, week] = await Promise.all([
-      store.countRunsSince(new Date(now - 86400e3).toISOString()),
-      store.countRunsSince(new Date(now - 7 * 86400e3).toISOString()),
-    ]);
-    return { day, week };
-  } catch {
-    return null;
-  }
-}
-
-/** System status for admins (accounts listed in ADMIN_EMAILS). Everyone else gets a 404. */
-export default async function AdminPage() {
-  const user = await requirePageUser("/admin");
-  if (!user.isAdmin) notFound();
+/** Keys, services and what needs fixing. Admins only (accounts listed in ADMIN_EMAILS); everyone else gets a 404. */
+export default async function AdminSystemPage() {
+  await requireAdminPage("/admin/system");
   const status = systemStatus();
   const keys = keyDiagnostics();
-  const [runs, oauth] = await Promise.all([usage(), enabledOAuthProviders()]);
+  const oauth = await enabledOAuthProviders();
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
 
   return (
     <Page>
       <PageHead {...PAGE_HEADS.admin} />
+      <AdminNav />
 
       <Section title="Needs attention" hint="Problems block generation; advisories limit quality.">
         {status.problems.length === 0 && status.advisories.length === 0 ? (
@@ -109,23 +82,6 @@ export default async function AdminPage() {
           <dt>Owner notifications</dt>
           <dd>{status.ntfyTopic}</dd>
         </dl>
-      </Section>
-
-      <Section title="Usage" hint="Generations across all accounts. Admins have no limit.">
-        <dl className="kv">
-          <dt>Last 24 hours</dt>
-          <dd>
-            {runs ? runs.day : "—"}
-            {config.limits.globalDaily ? ` of ${config.limits.globalDaily} allowed for regular accounts` : " · no daily cap"}
-          </dd>
-          <dt>Last 7 days</dt>
-          <dd>{runs ? runs.week : "—"}</dd>
-          <dt>Per account</dt>
-          <dd>{config.limits.userWeekly ? `${config.limits.userWeekly} per rolling week` : "No weekly limit"}</dd>
-        </dl>
-        <p className="body muted" style={{ fontSize: 15 }}>
-          Your own settings are on the <Link className="link" href="/profile">Profile</Link> page.
-        </p>
       </Section>
     </Page>
   );

@@ -1,4 +1,5 @@
 import { STAGES } from "@/lib/types";
+import { AdminNav } from "./AdminNav";
 import { HomeHero } from "./HomeHero";
 import { PAGE_HEADS, PageHead } from "./PageHead";
 import { PageTransition } from "./PageTransition";
@@ -223,13 +224,92 @@ export function ProfileSkeleton() {
   );
 }
 
-export function AdminSkeleton() {
+/** The admin pages share a heading and tabs, so only what is under them waits. */
+function AdminShell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <Shell>
+    <Shell label={label}>
       <PageHead {...PAGE_HEADS.admin} />
+      <AdminNav />
+      {children}
+    </Shell>
+  );
+}
+
+function FiguresSkeleton({ count, cols = 3 }: { count: number; cols?: 3 | 4 }) {
+  return (
+    <div className="figures" data-cols={cols}>
+      {Array.from({ length: count }, (_, i) => (
+        <div className="figure" key={i}>
+          <Bone w={90} h={11} />
+          <div className="num">
+            <Bone w="2.2em" h="0.8em" />
+          </div>
+          <div className="note">
+            <Bone w="70%" h={13} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AdminOverviewSkeleton() {
+  return (
+    <AdminShell label="Loading statistics">
+      <FiguresSkeleton count={6} />
+      <section className="section-head" style={{ marginTop: 56 }}>
+        <span className="label">Generations per day</span>
+        <Bone w={150} h={12} />
+      </section>
+      <div className="chart">
+        <Bone h={160} />
+      </div>
+      <FormSectionSkeleton rows={2} />
+      <FormSectionSkeleton rows={2} />
+    </AdminShell>
+  );
+}
+
+export function AdminUsersSkeleton() {
+  return (
+    <AdminShell label="Loading users">
+      <div className="utable-tools">
+        <Bone h={46} />
+        <Bone h={46} w={190} />
+      </div>
+      {Array.from({ length: 6 }, (_, i) => (
+        <div className="u-skel" key={i}>
+          <Bone w={`${58 - i * 5}%`} h={18} />
+          <Bone w={`${34 - i * 2}%`} h={13} />
+        </div>
+      ))}
+    </AdminShell>
+  );
+}
+
+export function AdminUserSkeleton() {
+  return (
+    <Shell label="Loading the user">
+      <header className="page-head">
+        <div className="label">← Users</div>
+        <h1 className="title-l user-title">
+          <Lines widths={["52%"]} />
+        </h1>
+      </header>
+      <AdminNav />
+      <FiguresSkeleton count={4} cols={4} />
+      <FormSectionSkeleton rows={2} />
+      <FormSectionSkeleton rows={2} />
+    </Shell>
+  );
+}
+
+export function AdminSystemSkeleton() {
+  return (
+    <AdminShell label="Loading system status">
       <FormSectionSkeleton rows={2} />
       <FormSectionSkeleton rows={4} />
-    </Shell>
+    </AdminShell>
   );
 }
 
