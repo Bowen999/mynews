@@ -87,16 +87,9 @@ body:has(.classic) .site-header {
   border-bottom: 1px solid var(--line);
 }
 
+/* The bar keeps its height and the logo its size, color and spacing, so nothing moves between pages. */
 body:has(.classic) .site-header .bar {
   gap: 24px;
-  height: 60px;
-}
-
-body:has(.classic) .site-header .wordmark {
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
 }
 
 body:has(.classic) .nav {
@@ -222,9 +215,6 @@ body:has(.classic) .site-footer {
 @media (max-width: 420px) {
   body:has(.classic) .site-header .bar {
     gap: 8px;
-  }
-  body:has(.classic) .site-header .wordmark {
-    font-size: 19px;
   }
   body:has(.classic) .nav a {
     padding: 6px 5px;

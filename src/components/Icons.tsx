@@ -62,6 +62,12 @@ export const CheckIcon = ({ size = 16 }: P) => (
   </svg>
 );
 
+export const TrashIcon = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M4 7h16M9 7V4.5A.5.5 0 0 1 9.5 4h5a.5.5 0 0 1 .5.5V7M6.5 7l.8 12a1 1 0 0 0 1 .9h7.4a1 1 0 0 0 1-.9l.8-12M10 11v5M14 11v5" />
+  </svg>
+);
+
 export const DownloadIcon = ({ size = 16 }: P) => (
   <svg {...base(size)}>
     <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />

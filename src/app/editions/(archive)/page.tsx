@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArchiveList, type ArchiveRow } from "@/components/ArchiveList";
 import { PAGE_HEADS, PageHead } from "@/components/PageHead";
 import { Page } from "@/components/PageTransition";
 import { profileForUser } from "@/lib/accounts";
@@ -23,6 +24,17 @@ export default async function Archive() {
   const read = new Map<string, Set<string>>();
   for (const i of interactions) if (i.kind === "open") read.set(i.editionId, (read.get(i.editionId) ?? new Set()).add(i.itemId));
   const unfinished = runs.filter((r) => r.status !== "completed");
+  // Formatted here so the text is the same on the server and in the browser.
+  const rows: ArchiveRow[] = editions.map((e) => {
+    const opened = read.get(e.id)?.size ?? 0;
+    return {
+      id: e.id,
+      number: String(e.number).padStart(2, "0"),
+      headline: e.headline,
+      meta: `${formatRange(e.windowStart, e.windowEnd)} · ${e.itemCount} stories${opened ? ` · ${opened} read` : ""}${e.sample ? " · sample data" : ""}`,
+      categories: e.topCategories.slice(0, 3).map((c) => CATEGORY_META[c]?.short ?? c).join(" / "),
+    };
+  });
 
   return (
     <Page>
@@ -50,30 +62,7 @@ export default async function Archive() {
         </>
       )}
 
-      {editions.length === 0 ? (
-        <p className="body muted" style={{ marginTop: 40 }}>
-          No editions yet.
-        </p>
-      ) : (
-        <ol className="issues" style={{ listStyle: "none" }}>
-          {editions.map((e, i) => (
-            <li key={e.id} className="enter" style={{ "--i": i } as React.CSSProperties}>
-              <Link href={`/editions/${e.id}`}>
-                <span className="no">{String(e.number).padStart(2, "0")}</span>
-                <span className="h">
-                  <span className="title-m">{e.headline}</span>
-                  <div className="meta">
-                    {formatRange(e.windowStart, e.windowEnd)} · {e.itemCount} stories
-                    {read.get(e.id)?.size ? ` · ${read.get(e.id)!.size} read` : ""}
-                    {e.sample ? " · sample data" : ""}
-                  </div>
-                </span>
-                <span className="c">{e.topCategories.slice(0, 3).map((c) => CATEGORY_META[c]?.short ?? c).join(" / ")}</span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      )}
+      <ArchiveList rows={rows} />
     </Page>
   );
 }

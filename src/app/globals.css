@@ -417,6 +417,23 @@ select {
   color: var(--invert-ink);
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: var(--bg);
+  border-color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-danger[disabled] {
+  background: var(--danger);
+  color: var(--bg);
+}
+
 .btn-quiet {
   border-color: transparent;
   color: var(--ink-2);
@@ -1291,6 +1308,64 @@ sup.cite + sup.cite::before {
   text-decoration-thickness: 2px;
 }
 
+.archive-list:focus {
+  outline: none;
+}
+
+/* A row is the link plus a delete button; the wrapper lets a deleted row collapse. */
+.issues li.item {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.3s var(--ease), opacity 0.2s, border-bottom-width 0.3s;
+}
+
+.issues .slot {
+  position: relative;
+  min-height: 0;
+}
+
+.issues li.leaving {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  border-bottom-width: 0;
+  animation: none; /* the entrance animation would otherwise hold the opacity at 1 */
+}
+
+.issues li.leaving .slot {
+  overflow: hidden;
+}
+
+.issues .del {
+  position: absolute;
+  right: -9px;
+  bottom: 18px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 0.2s, opacity 0.2s;
+}
+
+.issues .del:hover {
+  color: var(--danger);
+}
+
+/* With a mouse the button appears on hover or focus; on touch screens it is always there. */
+@media (hover: hover) and (pointer: fine) {
+  .issues .del {
+    opacity: 0;
+  }
+
+  .issues li:hover .del,
+  .issues li:focus-within .del {
+    opacity: 1;
+  }
+}
+
 .runs {
   list-style: none;
   margin: 0;
@@ -1833,6 +1908,18 @@ dialog.modal[open] {
   font-size: 15px;
 }
 
+.modal-body .modal-text {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin: 14px 0 26px;
+}
+
+.modal-body .form-error {
+  margin: -12px 0 20px;
+}
+
 .modal-body .row {
   justify-content: flex-end;
 }
@@ -1944,6 +2031,7 @@ dialog.modal[open] {
     grid-column: 4 / span 9;
     text-align: left;
     margin-top: 10px;
+    padding-right: 34px; /* clear of the delete button */
   }
   .stage .sn {
     grid-column: 1 / span 2;

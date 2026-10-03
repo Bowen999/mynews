@@ -121,9 +121,14 @@ export class FileStore implements Store {
       return null;
     }
   }
+  /** Also drops the ratings and reading history of its stories, as `on delete cascade` does in Supabase. */
   async deleteEdition(id: string) {
     await fs.rm(this.p("editions", `${id}.json`), { force: true });
     await fs.rm(this.p("editions-html", `${id}.html`), { force: true });
+    const feedback = await this.allFeedback();
+    if (feedback.some((f) => f.editionId === id)) await this.write(this.p("feedback.json"), feedback.filter((f) => f.editionId !== id));
+    const interactions = await this.allInteractions();
+    if (interactions.some((i) => i.editionId === id)) await this.write(this.p("interactions.json"), interactions.filter((i) => i.editionId !== id));
   }
 
   private async allFeedback(): Promise<Feedback[]> {

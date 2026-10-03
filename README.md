@@ -11,8 +11,9 @@ publication dates and links, a relevance/importance breakdown, and an expandable
 Every statement carries a citation to a numbered source. Source links always come from search results,
 never from the model. Generated claims that can't be matched to a source are removed automatically.
 
-Every run produces an independent **edition** that is kept in the archive. Each edition is also saved as
-a self-contained interactive HTML page that you can open or download.
+Every run produces an independent **edition** that is kept in the archive until you delete it there (with its
+ratings and reading history). Each edition is also saved as a self-contained interactive HTML page that you can open or
+download.
 
 **Accounts.** Anyone you allow can create an account and get briefings about their own work, signing in with email and
 password or with GitHub or Google. Each account has its own reference sources, interest profile, editions, feedback and

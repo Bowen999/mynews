@@ -81,7 +81,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Inter Tight",
 a{color:inherit}
 .wrap{max-width:980px;margin:0 auto;padding:0 20px}
 header.top{display:flex;justify-content:space-between;align-items:center;height:60px;border-bottom:1px solid var(--hair)}
-.brand{font-weight:700;font-size:21px;letter-spacing:-.04em}.brand::after{content:".";color:var(--brand)}
+.brand{font-weight:700;font-size:22px;letter-spacing:-.04em;line-height:1}.brand::after{content:".";color:var(--brand)}
+@media(max-width:420px){.brand{font-size:20px}}
 button.theme{border:1px solid var(--hair);background:none;color:var(--ink2);padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
 .label,.kicker,h4{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .cover{padding:48px 0 0}
