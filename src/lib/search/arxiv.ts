@@ -70,7 +70,7 @@ export class ArxivProvider implements SearchProvider {
       sortOrder: "descending",
       max_results: String(Math.min(ctx.maxResults, 25)),
     });
-    const xml = await httpText(this.name, `https://export.arxiv.org/api/query?${params}`, { timeoutMs: 25000 });
+    const xml = await httpText(this.name, `https://export.arxiv.org/api/query?${params}`, { timeoutMs: 15000 });
     return parseArxivFeed(xml, this.name);
   }
 }

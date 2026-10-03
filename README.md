@@ -230,6 +230,9 @@ To add a search source, implement `SearchProvider` and add it to the routing in 
 - **"Key is missing" after you added it:** Vercel only passes variables to deployments created after you saved them, and
   only for the environments you ticked (Production / Preview). Redeploy (Deployments → ⋯ → Redeploy). The **Admin → System** page
   lists which keys the running deployment can see, by name only.
+- **Rate limits and timeouts:** Semantic Scholar's keyless pool is shared and often busy (HTTP 429), and arXiv sometimes
+  doesn't answer. A provider that fails twice in a row is skipped for the rest of that run, and the run log says so in one
+  line. A free `SEMANTIC_SCHOLAR_API_KEY` makes Semantic Scholar far more reliable.
 - **WeChat and patents** are found through domain-restricted web search (`mp.weixin.qq.com`, Google Patents, WIPO…),
   so they need a search API key.
 - **Undated pages** found by a past-week search filter are allowed but penalized, and labeled "date unverified".

@@ -12,11 +12,25 @@ import { SemanticScholarProvider } from "./semanticscholar";
 import { SerperProvider } from "./serper";
 import { TavilyProvider } from "./tavily";
 import type { Category } from "../types";
-import { ProviderError, type RawResult, type SearchContext, type SearchProvider, type SearchTask, type TaskKind } from "./types";
+import { describeFailure, isOutage, ProviderError, type RawResult, type SearchContext, type SearchProvider, type SearchTask, type TaskKind } from "./types";
 
 export type { RawResult, SearchTask } from "./types";
 
-type Routing = Record<TaskKind, SearchProvider[]>;
+export type Routing = Record<TaskKind, SearchProvider[]>;
+
+/** After this many outages in a row (rate limit, timeout, 5xx) a provider is skipped for the rest of the run. */
+export const TRIP_AFTER = 2;
+
+const LABELS: Record<string, string> = {
+  "semantic-scholar": "Semantic Scholar",
+  "europe-pmc": "Europe PMC",
+  arxiv: "arXiv",
+  "google-scholar": "Google Scholar",
+  tavily: "Tavily",
+  exa: "Exa",
+  serper: "Serper",
+  brave: "Brave Search",
+};
 
 function apiProviders(): SearchProvider[] {
   const list: SearchProvider[] = [];
@@ -66,25 +80,56 @@ export interface TaggedResult extends RawResult {
   taskKind: TaskKind;
 }
 
+/** How one provider fared in a run; listed only when something went wrong. */
+export interface ProviderHealth {
+  provider: string;
+  ok: number;
+  /** Requests that failed. */
+  failed: number;
+  /** Requests never sent because the provider had been switched off for the run. */
+  skipped: number;
+  /** The last failure, in a few words ("timed out"). */
+  reason?: string;
+}
+
 export interface SearchOutcome {
   results: TaggedResult[];
   tasksRun: number;
   providersUsed: string[];
   errors: string[];
+  health: ProviderHealth[];
 }
 
-/** Run all tasks with bounded concurrency, falling back across providers and disabling ones that fail fatally. */
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** One line for the run log: "arXiv timed out: 2 requests failed, 3 skipped." */
+export function describeHealth(h: ProviderHealth): string {
+  const counts = [h.failed ? `${plural(h.failed, "request")} failed` : "", h.skipped ? `${h.skipped} skipped` : ""].filter(Boolean).join(", ");
+  return `${LABELS[h.provider] ?? h.provider} ${h.reason ?? "had problems"}: ${counts}.`;
+}
+
+/**
+ * Run all tasks with bounded concurrency, falling back across providers. A provider is switched off for
+ * the rest of the run when it fails fatally (bad key, quota) or has TRIP_AFTER outages in a row, so a
+ * rate-limited or unreachable service doesn't spend the whole stage on requests that cannot succeed.
+ */
 export async function runSearchTasks(
   tasks: SearchTask[],
   ctx: SearchContext,
-  opts: { deadlineMs: number; onProgress?: (done: number, total: number) => void },
+  opts: { deadlineMs: number; onProgress?: (done: number, total: number) => void; routing?: Routing },
 ): Promise<SearchOutcome> {
-  const routing = buildRouting();
+  const routing = opts.routing ?? buildRouting();
   const disabled = new Set<string>();
   const used = new Set<string>();
   const errors: string[] = [];
   const started = Date.now();
   const nextSlot = new Map<string, number>();
+  const tally = new Map<string, ProviderHealth & { streak: number }>();
+  const tallyOf = (provider: string) => {
+    let t = tally.get(provider);
+    if (!t) tally.set(provider, (t = { provider, ok: 0, failed: 0, skipped: 0, streak: 0 }));
+    return t;
+  };
   let done = 0;
 
   /** Wait for the provider's next free slot (requests in a lane run one at a time when spacing applies). */
@@ -99,13 +144,19 @@ export async function runSearchTasks(
 
   const perTask = async (task: SearchTask): Promise<RawResult[]> => {
     if (Date.now() - started > opts.deadlineMs) return [];
-    const chain = routing[task.kind].filter((p) => !disabled.has(p.name));
+    const configured = routing[task.kind];
+    const chain = configured.filter((p) => !disabled.has(p.name));
+    if (!chain.length && configured.length) tallyOf(configured[0].name).skipped++;
     for (const provider of chain) {
       try {
         await pace(provider);
+        if (disabled.has(provider.name)) continue; // switched off while this task waited for its slot
         if (Date.now() - started > opts.deadlineMs) return [];
         const results = await provider.search(task, ctx);
         used.add(provider.name);
+        const t = tallyOf(provider.name);
+        t.ok++;
+        t.streak = 0;
         return results.map((r) => ({
           ...r,
           lang: r.lang ?? task.lang,
@@ -114,7 +165,11 @@ export async function runSearchTasks(
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (errors.length < 30 && !disabled.has(provider.name)) errors.push(`[${task.kind}] ${msg}`);
-        if (e instanceof ProviderError && e.fatal) disabled.add(provider.name);
+        const t = tallyOf(provider.name);
+        t.failed++;
+        t.reason = describeFailure(e);
+        if (isOutage(e)) t.streak++;
+        if ((e instanceof ProviderError && e.fatal) || t.streak >= TRIP_AFTER) disabled.add(provider.name);
       }
     }
     return [];
@@ -140,7 +195,10 @@ export async function runSearchTasks(
     ),
   );
 
-  return { results: batches.flat(2), tasksRun: tasks.length, providersUsed: [...used], errors };
+  const health = [...tally.values()]
+    .filter((t) => t.failed || t.skipped)
+    .map(({ provider, ok, failed, skipped, reason }): ProviderHealth => ({ provider, ok, failed, skipped, reason }));
+  return { results: batches.flat(2), tasksRun: tasks.length, providersUsed: [...used], errors, health };
 }
 
 export { TavilyProvider };

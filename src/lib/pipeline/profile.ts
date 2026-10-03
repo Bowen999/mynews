@@ -5,7 +5,7 @@ import { CATEGORIES, isCategory, type Category, type InterestProfile, type Searc
 import { isoDay } from "../util/dates";
 import { clamp, hasCJK, sha1, truncate, uniq, uniqBy } from "../util/text";
 import type { StageContext, StageResult } from "./context";
-import { resolveIdentity } from "./identity";
+import { resolveIdentity, scholarFromHints, withoutWeakMatchData } from "./identity";
 import { PROFILE_SYSTEM, profilePrompt } from "./prompts";
 import { ensurePrototypes } from "./semantic";
 
@@ -221,6 +221,8 @@ export async function profileStage(ctx: StageContext): Promise<StageResult> {
   }
 
   // Scholarly identity (Semantic Scholar + Google Scholar): enables "cites your work", co-author and recommendation searches.
+  const hints = snapshots.map((s) => s.hints ?? {});
+  interest.scholar = withoutWeakMatchData(interest.scholar, scholarFromHints(hints).titles);
   const scholar = interest.scholar;
   const identityAge = scholar?.resolvedAt ? (Date.now() - new Date(scholar.resolvedAt).getTime()) / 86400000 : Infinity;
   const forcedChanged = Boolean(prefs.semanticScholarAuthorId && scholar?.s2AuthorId !== prefs.semanticScholarAuthorId);
@@ -228,7 +230,6 @@ export async function profileStage(ctx: StageContext): Promise<StageResult> {
     enabled.includes("paper") && (!scholar?.resolvedAt || forcedChanged || !ctx.run.state.profileReused || identityAge > IDENTITY_MAX_AGE_DAYS);
   if (needsResolve && !ctx.deadline.expired(60000)) {
     await ctx.detail("Matching you to your publication record");
-    const hints = snapshots.map((s) => s.hints ?? {});
     interest.scholar = await resolveIdentity({
       forcedS2Id: prefs.semanticScholarAuthorId,
       name: interest.person.name ?? hints.find((h) => h.scholarName)?.scholarName,
@@ -239,7 +240,9 @@ export async function profileStage(ctx: StageContext): Promise<StageResult> {
     const s = interest.scholar;
     if (s.note) ctx.log("warn", s.note);
     const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-    if (s.s2AuthorId) {
+    if (s.s2AuthorId && s.confidence === "low") {
+      ctx.log("info", `Not using Semantic Scholar author ${s.displayName ?? s.s2AuthorId}: too uncertain a match.`);
+    } else if (s.s2AuthorId) {
       ctx.log("info", `Matched Semantic Scholar author ${s.displayName ?? s.s2AuthorId} (${s.confidence} confidence, ${n(s.paperIds?.length ?? 0, "paper")}, ${n(s.coauthorIds?.length ?? 0, "co-author")}).`);
     }
     if (s.citesIds?.length) ctx.log("info", `Tracking new Google Scholar citations of ${s.citesIds.length} of your most-cited papers.`);

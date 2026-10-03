@@ -1,6 +1,6 @@
 import { config } from "../config";
 import { extractUrl } from "../extract";
-import { runSearchTasks, TavilyProvider, type TaggedResult } from "../search";
+import { describeHealth, runSearchTasks, TavilyProvider, type TaggedResult } from "../search";
 import type { Candidate, InterestProfile } from "../types";
 import { pMap } from "../util/concurrency";
 import { inWindow, parseDate, type Window } from "../util/dates";
@@ -157,7 +157,7 @@ export async function searchStage(ctx: StageContext): Promise<StageResult> {
       onProgress: (done, total) => void ctx.detail(`Searched ${done} of ${total} queries`),
     },
   );
-  for (const err of outcome.errors.slice(0, 8)) ctx.log("warn", `Search: ${err}`);
+  for (const h of outcome.health) ctx.log("warn", `Search: ${describeHealth(h)}`);
   if (!outcome.providersUsed.length) {
     throw new Error(`All search providers failed. ${outcome.errors.slice(0, 3).join(" | ")}`);
   }

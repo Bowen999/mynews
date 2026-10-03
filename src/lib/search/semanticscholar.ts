@@ -37,14 +37,22 @@ function headers(): Record<string, string> {
   return h;
 }
 
-/** GET/POST with one retry on 429 (the keyless pool is shared and often busy). */
+/** Longest we will wait to retry after a 429; a service that asks for more is not worth waiting for. */
+const RETRY_WAIT_CAP_MS = 8000;
+
+/**
+ * GET/POST with one retry on 429 (the keyless pool is shared and often busy), after what the service
+ * asked for (Retry-After) or 2 s, plus a little jitter. A longer Retry-After is passed on at once.
+ */
 export async function s2Fetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   const req = () => httpJson<T>(NAME, url, { ...init, headers: { ...headers(), ...(init.headers ?? {}) }, timeoutMs: 20000 });
   try {
     return await req();
   } catch (e) {
     if (e instanceof ProviderError && e.status === 429) {
-      await new Promise((r) => setTimeout(r, 2000));
+      const wait = Math.max(2000, e.retryAfterMs ?? 0);
+      if (wait > RETRY_WAIT_CAP_MS) throw e;
+      await new Promise((r) => setTimeout(r, wait + Math.random() * 500));
       return req();
     }
     throw e;
@@ -237,6 +245,11 @@ export async function resolveS2Author(input: {
 
   if (!authorId) return empty("No matching Semantic Scholar author.");
 
+  // A guess between several people with this name: say who it was, but don't load or use their papers.
+  if (confidence === "low") {
+    return { s2AuthorId: authorId, displayName, confidence, paperIds: [], paperTitles: [], coauthorIds: [], coauthorNames: [], note };
+  }
+
   const params = new URLSearchParams({ fields: "paperId,title,year,citationCount,authors", limit: "100" });
   const papers = (await s2Fetch<{ data?: S2Paper[] }>(`${GRAPH}/author/${encodeURIComponent(authorId)}/papers?${params}`)).data ?? [];
   const byCitations = [...papers].sort((a, b) => (b.citationCount ?? 0) - (a.citationCount ?? 0));
@@ -257,7 +270,8 @@ export async function resolveS2Author(input: {
     displayName,
     confidence,
     paperIds: seeds,
-    paperTitles: [...byCitations.slice(0, 12), ...byYear.slice(0, 6)].map((p) => p.title ?? "").filter(Boolean).slice(0, 18),
+    // A paper that is both highly cited and recent is listed once.
+    paperTitles: [...new Set([...byCitations.slice(0, 12), ...byYear.slice(0, 6)].map((p) => p.title ?? "").filter(Boolean))].slice(0, 18),
     coauthorIds: coauthors.map(([id]) => id),
     coauthorNames: coauthors.map(([, v]) => v.name),
     note,

@@ -545,8 +545,11 @@ export function ProfileEditor({
                     <a href={`https://www.semanticscholar.org/author/${interest.scholar.s2AuthorId}`} target="_blank" rel="noopener noreferrer">
                       {interest.scholar.displayName ?? interest.scholar.s2AuthorId}
                     </a>{" "}
-                    on Semantic Scholar ({interest.scholar.confidence} confidence, {interest.scholar.paperIds?.length ?? 0} papers tracked
-                    {interest.scholar.coauthorNames?.length ? `, co-authors ${interest.scholar.coauthorNames.slice(0, 4).join(", ")}` : ""})
+                    on Semantic Scholar (
+                    {interest.scholar.confidence === "low"
+                      ? "low confidence, not used"
+                      : `${interest.scholar.confidence} confidence, ${interest.scholar.paperIds?.length ?? 0} papers tracked${interest.scholar.coauthorNames?.length ? `, co-authors ${interest.scholar.coauthorNames.slice(0, 4).join(", ")}` : ""}`}
+                    )
                   </>
                 ) : (
                   "Not matched on Semantic Scholar"

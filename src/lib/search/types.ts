@@ -59,17 +59,62 @@ export interface SearchProvider {
   search(task: SearchTask, ctx: SearchContext): Promise<RawResult[]>;
 }
 
+export interface ProviderErrorDetail {
+  /** How long the service asked us to wait (Retry-After), in milliseconds. */
+  retryAfterMs?: number;
+  /** The request ran out of time instead of getting an answer. */
+  timedOut?: boolean;
+}
+
 export class ProviderError extends Error {
+  readonly retryAfterMs?: number;
+  readonly timedOut: boolean;
   constructor(
     readonly provider: string,
     message: string,
     /** Auth/quota failures disable the provider for the rest of the run. */
     readonly fatal = false,
     readonly status?: number,
+    detail: ProviderErrorDetail = {},
   ) {
     super(`${provider}: ${message}`);
     this.name = "ProviderError";
+    this.retryAfterMs = detail.retryAfterMs;
+    this.timedOut = detail.timedOut ?? false;
   }
+}
+
+/** Retry-After as milliseconds: a number of seconds or an HTTP date. */
+export function retryAfterMs(res: Pick<Response, "headers">): number | undefined {
+  const v = res.headers.get("retry-after");
+  if (!v) return undefined;
+  const seconds = Number(v);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
+}
+
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+
+/**
+ * Whether a failure says the service itself is struggling (rate limit, outage, no answer) rather than
+ * that one request was wrong. Only these count toward switching a provider off for the run.
+ */
+export function isOutage(e: unknown): boolean {
+  if (e instanceof ProviderError && e.status !== undefined) return e.status === 429 || e.status >= 500;
+  return true;
+}
+
+/** A few words for the run log: "was rate-limited (HTTP 429)", "timed out", … */
+export function describeFailure(e: unknown): string {
+  if (e instanceof ProviderError) {
+    if (e.timedOut) return "timed out";
+    if (e.status === 429) return "was rate-limited (HTTP 429)";
+    if (e.status !== undefined && e.status >= 500) return `was unavailable (HTTP ${e.status})`;
+    if (e.status !== undefined) return `answered HTTP ${e.status}`;
+  }
+  const msg = (e instanceof Error ? e.message : String(e)).replace(/^[\w-]+: /, "").replace(/\s+/g, " ").trim();
+  return `failed (${msg.length > 80 ? `${msg.slice(0, 79)}…` : msg})`;
 }
 
 export const USER_AGENT =
@@ -85,12 +130,14 @@ export async function httpJson<T>(
   try {
     res = await fetch(url, { ...rest, signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) {
-    throw new ProviderError(provider, e instanceof Error ? e.message : String(e));
+    throw new ProviderError(provider, e instanceof Error ? e.message : String(e), false, undefined, { timedOut: isTimeout(e) });
   }
   const text = await res.text();
   if (!res.ok) {
     const fatal = res.status === 401 || res.status === 402 || res.status === 403 || res.status === 432 || res.status === 433;
-    throw new ProviderError(provider, `HTTP ${res.status} ${text.slice(0, 200)}`, fatal, res.status);
+    // A rate limit's body is boilerplate; other errors keep the start of theirs.
+    const detail = res.status === 429 ? "" : ` ${text.slice(0, 200)}`;
+    throw new ProviderError(provider, `HTTP ${res.status}${detail}`.trim(), fatal, res.status, { retryAfterMs: retryAfterMs(res) });
   }
   try {
     return JSON.parse(text) as T;
@@ -113,9 +160,11 @@ export async function httpText(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
-    throw new ProviderError(provider, e instanceof Error ? e.message : String(e));
+    throw new ProviderError(provider, e instanceof Error ? e.message : String(e), false, undefined, { timedOut: isTimeout(e) });
   }
-  if (!res.ok) throw new ProviderError(provider, `HTTP ${res.status}`, res.status === 403 || res.status === 429, res.status);
+  if (!res.ok) {
+    throw new ProviderError(provider, `HTTP ${res.status}`, res.status === 403 || res.status === 429, res.status, { retryAfterMs: retryAfterMs(res) });
+  }
   return res.text();
 }
 

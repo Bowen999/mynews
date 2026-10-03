@@ -21,6 +21,17 @@ export function scholarFromHints(hints: Hints[]): { scholarUserId?: string; cite
 }
 
 /**
+ * An earlier version kept the papers and co-authors of a weak (low-confidence) Semantic Scholar match, and
+ * embedded their titles as "your work". They are not necessarily this person's: drop them and use the
+ * titles from the person's own pages instead.
+ */
+export function withoutWeakMatchData(s: ScholarIdentity | undefined, ownTitles: string[]): ScholarIdentity | undefined {
+  if (!s || s.confidence !== "low" || !s.s2AuthorId) return s;
+  if (!s.paperIds?.length && !s.coauthorIds?.length) return s;
+  return { ...s, paperIds: [], coauthorIds: [], coauthorNames: [], paperTitles: ownTitles.slice(0, 18) };
+}
+
+/**
  * Work out who the person is in scholarly indexes: Google Scholar ids come from their profile page,
  * the Semantic Scholar author from an explicit id, their own paper titles, or name + affiliation.
  */
@@ -66,6 +77,7 @@ export async function resolveIdentity(input: {
     displayName: s2?.displayName ?? input.name,
     confidence: s2?.s2AuthorId ? s2.confidence : gs.citesIds.length ? "medium" : "low",
     paperIds: s2?.paperIds ?? [],
+    // Embedded as "your work", so only titles that are surely theirs: a weak match has none (see resolveS2Author).
     paperTitles: (s2?.paperTitles.length ? s2.paperTitles : gs.titles).slice(0, 18),
     coauthorIds: s2?.coauthorIds ?? [],
     coauthorNames: s2?.coauthorNames ?? [],
