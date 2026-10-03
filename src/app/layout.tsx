@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight, Source_Serif_4 } from "next/font/google";
 import { Suspense } from "react";
+import { Intro } from "@/components/Intro";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { themeInitScript } from "@/components/ThemeToggle";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
+        <Intro />
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>

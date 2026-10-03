@@ -2680,3 +2680,159 @@ body:has(.save-bar) .toasts {
     display: inline;
   }
 }
+
+/* ---------- Opening animation (Intro.tsx) ---------- */
+/* Shown only while <html data-intro> is set: "wait" (font loading), "play", or "skip". The overlay
+   keeps the editorial colors on every page, so it captures them from :root. */
+
+:root {
+  --intro-bg: var(--bg);
+  --intro-ink: var(--ink);
+}
+
+.intro {
+  display: none;
+}
+
+html[data-intro] .intro {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--intro-bg);
+  color: var(--intro-ink);
+  cursor: default;
+}
+
+.intro-inner {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+/* Clips the wordmark while it rises; the padding leaves room for the descender of "y". */
+.intro-mask {
+  overflow: hidden;
+  padding: 0.04em 0.06em 0.12em;
+  font-size: clamp(52px, 10vw, 120px);
+}
+
+.intro-mark {
+  display: block;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  transform: translateY(115%);
+}
+
+.intro-rule {
+  width: 100%;
+  height: 2px;
+  background: var(--intro-ink);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+.intro-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  opacity: 0;
+}
+
+html[data-intro="play"] .intro-mark {
+  animation: intro-rise 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+html[data-intro="play"] .intro-rule {
+  animation: intro-draw 0.55s cubic-bezier(0.65, 0, 0.35, 1) 0.15s both;
+}
+
+html[data-intro="play"] .intro-label {
+  animation: intro-fade 0.45s ease-out 0.35s both;
+}
+
+html[data-intro="play"] .intro-inner {
+  animation: intro-lift 0.32s cubic-bezier(0.4, 0, 1, 1) 0.95s both;
+}
+
+html[data-intro="play"] .intro {
+  animation: intro-out 0.32s cubic-bezier(0.4, 0, 1, 1) 0.95s both;
+}
+
+/* The page rises into place as the overlay lifts. */
+html[data-intro="play"] .site-header,
+html[data-intro="play"] main,
+html[data-intro="play"] .site-footer {
+  animation: intro-app 0.55s cubic-bezier(0.16, 1, 0.3, 1) 1.12s both;
+}
+
+/* A separate animation name, so skipping restarts the fade instead of retiming the running one. */
+html[data-intro="skip"] .intro {
+  pointer-events: none;
+  animation: intro-skip 0.2s ease-out both;
+}
+
+@keyframes intro-rise {
+  from {
+    transform: translateY(115%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes intro-draw {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes intro-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes intro-lift {
+  to {
+    transform: translateY(-24px) scale(0.97);
+  }
+}
+
+@keyframes intro-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes intro-skip {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes intro-app {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce), print {
+  html[data-intro] .intro {
+    display: none;
+  }
+}
