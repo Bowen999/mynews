@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { providerLabel } from "@/lib/auth/providers";
-import { CATEGORIES, CATEGORY_META, type Category, type Profile } from "@/lib/types";
+import { CATEGORIES, CATEGORY_META, FIELD_ENTITY_KINDS, type Category, type FieldEntity, type FieldEntityKind, type Profile } from "@/lib/types";
 import { setUnsavedChanges } from "@/lib/unsaved";
 import { isGitHub, normalizeUserUrl } from "@/lib/util/url";
 import { CheckIcon, EyeIcon, EyeOffIcon } from "./Icons";
@@ -548,6 +548,7 @@ export function ProfileEditor({
               {(["people", "organizations", "companies", "venues", "products"] as const).map((k) =>
                 interest.entities[k].length ? <Row key={k} label={k[0].toUpperCase() + k.slice(1)} value={interest.entities[k].join(", ")} /> : null,
               )}
+              {interest.fieldEntities?.length ? <Row label="In your field" value={fieldSummary(interest.fieldEntities)} /> : null}
               <dt>Scholarly record</dt>
               <dd>
                 {interest.scholar?.s2AuthorId ? (
@@ -651,6 +652,18 @@ export function ProfileEditor({
 
     </>
   );
+}
+
+const FIELD_LABELS: Record<FieldEntityKind, string> = { company: "Companies", startup: "Startups", investor: "Investors", lab: "Labs" };
+
+/** "Companies: Anthropic, OpenAI · Investors: Flagship Pioneering" */
+function fieldSummary(list: FieldEntity[]): string {
+  return FIELD_ENTITY_KINDS.map((k) => {
+    const names = list.filter((e) => e.kind === k).map((e) => e.name);
+    return names.length ? `${FIELD_LABELS[k]}: ${names.join(", ")}` : "";
+  })
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function Row({ label, value }: { label: string; value: string }) {

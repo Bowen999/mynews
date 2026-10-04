@@ -107,6 +107,23 @@ export interface InterestTopic {
   zhKeywords?: string[];
 }
 
+export const FIELD_ENTITY_KINDS = ["company", "startup", "investor", "lab"] as const;
+export type FieldEntityKind = (typeof FIELD_ENTITY_KINDS)[number];
+
+/**
+ * An organization the reader likely follows, whether or not their sources mention it: a leader in their
+ * field, an investor that shapes it, a promising startup in a small market, or a leading lab.
+ */
+export interface FieldEntity {
+  name: string;
+  kind: FieldEntityKind;
+  /** Other names it goes by, such as its Chinese name. */
+  aliases: string[];
+  /** A few words on what about it matters to this reader ("AI chips"); absent when all of its news does. */
+  focus?: string;
+  weight: number; // 0..1
+}
+
 export interface SearchQuery {
   category: Category;
   query: string;
@@ -123,6 +140,7 @@ export interface InterestProfile {
     location?: string;
   };
   topics: InterestTopic[];
+  /** Names that appear in the reference sources: the person's own network. */
   entities: {
     people: string[];
     organizations: string[];
@@ -130,6 +148,8 @@ export interface InterestProfile {
     venues: string[];
     products: string[];
   };
+  /** Organizations someone in this field would follow, picked by the model; each is searched by name. */
+  fieldEntities?: FieldEntity[];
   queries: SearchQuery[];
   languages: Lang[];
   exclusions: string[];

@@ -46,6 +46,25 @@ describe("prescore", () => {
     expect(cites).toBeGreaterThan(1);
     expect(prescore(cand({ id: "d", title: "脂质组学新进展" }), profile)).toBeGreaterThan(0.8);
   });
+  it("favors stories about organizations the reader follows, more when the headline names them", () => {
+    const p: InterestProfile = {
+      ...profile,
+      fieldEntities: [
+        { name: "Unitree", kind: "company", aliases: ["宇树科技"], weight: 1 },
+        { name: "Flagship Pioneering", kind: "investor", aliases: [], weight: 0.5 },
+      ],
+    };
+    const none = prescore(cand({ id: "a", title: "Quarterly earnings roundup" }), p);
+    const passing = prescore(cand({ id: "b", title: "Quarterly earnings roundup", snippet: "Analysts also mentioned Unitree." }), p);
+    const headline = prescore(cand({ id: "c", title: "Unitree unveils a new humanoid" }), p);
+    const chinese = prescore(cand({ id: "d", title: "宇树科技发布新款人形机器人" }), p);
+    const weaker = prescore(cand({ id: "e", title: "Flagship Pioneering launches a new company" }), p);
+    expect(passing).toBeGreaterThan(none);
+    expect(headline).toBeGreaterThan(passing);
+    expect(chinese).toBeCloseTo(headline - (prescore(cand({ id: "c", title: "Unitree unveils a new humanoid" }), profile) - none), 5);
+    expect(weaker).toBeLessThan(headline);
+    expect(weaker).toBeGreaterThan(none);
+  });
   it("uses word boundaries for Latin keywords", () => {
     const p = { ...profile, topics: [{ name: "AI", weight: 1, keywords: ["ai"] }] };
     expect(prescore(cand({ id: "e", title: "He said hello" }), p)).toBeLessThan(prescore(cand({ id: "f", title: "AI news" }), p));
@@ -141,6 +160,72 @@ describe("profile normalization and planning", () => {
     for (const c of enabled) expect(p.queries.some((q) => q.category === c)).toBe(true);
     expect(p.languages).toContain("zh");
     expect(p.exclusions).toContain("crypto");
+  });
+  it("keeps the organizations the model picked for the field, cleaned up and without muted ones", () => {
+    const out = {
+      summary: "x",
+      person: {},
+      topics: [{ name: "Robotics", weight: 0.9, keywords: ["humanoid robot"] }],
+      entities: {},
+      fieldEntities: [
+        { name: "Unitree", kind: "company", aliases: ["宇树科技", "Unitree"], focus: "humanoid robots site:unitree.com", weight: 0.9 },
+        { name: "“Tesla”", kind: "Company", aliases: [], focus: "", weight: 0.8 },
+        { name: "tesla", kind: "company", aliases: [], focus: "", weight: 0.4 },
+        { name: "Flagship Pioneering", kind: "Venture capital", aliases: [], focus: "", weight: 0.5 },
+        { name: "Figure", kind: "start-up", aliases: [], focus: "", weight: 7 },
+        { name: "Crypto Robotics", kind: "startup", aliases: [], focus: "", weight: 0.6 },
+        { name: "", kind: "lab", aliases: [], focus: "", weight: 0.6 },
+      ],
+      queries: [{ category: "news", query: "humanoid robot", lang: "en" }],
+      languages: ["en"],
+      exclusions: [],
+    };
+    const p = normalizeProfile(out, { pinned: [], muted: ["crypto"], enabled: [...CATEGORIES], inputHash: "h" });
+    expect(p.fieldEntities).toEqual([
+      { name: "Figure", kind: "startup", aliases: [], focus: undefined, weight: 1 },
+      { name: "Unitree", kind: "company", aliases: ["宇树科技"], focus: "humanoid robots", weight: 0.9 },
+      { name: "Tesla", kind: "company", aliases: [], focus: undefined, weight: 0.8 },
+      { name: "Flagship Pioneering", kind: "investor", aliases: [], focus: undefined, weight: 0.5 },
+    ]);
+    const { fieldEntities: _omit, ...older } = out;
+    void _omit;
+    expect(normalizeProfile(older, { pinned: [], muted: [], enabled: [...CATEGORIES], inputHash: "h" }).fieldEntities).toEqual([]);
+  });
+  it("searches the organizations the reader follows by name, in the category their news belongs to", () => {
+    const p: InterestProfile = {
+      ...profile,
+      fieldEntities: [
+        { name: "NVIDIA", kind: "company", aliases: ["英伟达"], focus: "AI chips", weight: 0.9 },
+        { name: "BioMap", kind: "startup", aliases: ["百图生科"], weight: 0.8 },
+        { name: "Flagship Pioneering", kind: "investor", aliases: [], weight: 0.6 },
+        { name: "Institute for Protein Design", kind: "lab", aliases: [], weight: 0.5 },
+      ],
+    };
+    const tasks = planSearch(p, defaultPreferences());
+    expect(tasks.find((t) => t.query === '"NVIDIA" AI chips')).toMatchObject({ kind: "news", category: "news", lang: "en" });
+    expect(tasks.find((t) => t.query === '"英伟达"')).toMatchObject({ kind: "news", category: "news", lang: "zh" });
+    expect(tasks.find((t) => t.query === '"BioMap"')).toMatchObject({ kind: "news", category: "funding" });
+    expect(tasks.find((t) => t.query === '"Flagship Pioneering"')).toMatchObject({ kind: "news", category: "funding" });
+    expect(tasks.find((t) => t.query === '"Institute for Protein Design"')).toMatchObject({ kind: "news", category: "people" });
+
+    const prefs = { ...defaultPreferences(), watchTerms: ["BioMap"] };
+    prefs.categories.funding = false;
+    prefs.categories.news = false;
+    const limited = planSearch({ ...p, languages: ["en"] }, prefs);
+    expect(limited.filter((t) => t.query.includes("BioMap"))).toEqual([expect.objectContaining({ signal: "watchlist" })]);
+    expect(limited.some((t) => t.query.includes("Flagship"))).toBe(false); // no enabled category for an investor
+    expect(limited.find((t) => t.query === '"NVIDIA" AI chips')?.category).toBe("product");
+    expect(limited.some((t) => t.lang === "zh" && t.query.includes("英伟达"))).toBe(false);
+  });
+  it("caps entity searches without crowding out topic and personal ones", () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({ category: (i % 2 ? "news" : "paper") as "news" | "paper", query: `topic query ${i}`, lang: "en" as const }));
+    const base: InterestProfile = { ...profile, queries: many };
+    const fieldEntities = Array.from({ length: 20 }, (_, i) => ({ name: `Company ${i}`, kind: "company" as const, aliases: [], weight: 1 }));
+    const without = planSearch(base, defaultPreferences());
+    const withEntities = planSearch({ ...base, fieldEntities }, defaultPreferences());
+    const entityTasks = withEntities.filter((t) => t.query.startsWith('"Company '));
+    expect(entityTasks).toHaveLength(12);
+    expect(withEntities.length - entityTasks.length).toBe(without.length);
   });
   it("plans provider-routed tasks with domain filters and personal scholarly tasks", () => {
     const tasks = planSearch(profile, defaultPreferences(), { likedPaperIds: ["liked1"], dislikedPaperIds: ["bad1"] });

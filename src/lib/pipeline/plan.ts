@@ -1,7 +1,7 @@
 import { config, webSearchProviders } from "../config";
 import type { SearchTask, TaskKind } from "../search/types";
-import type { Category, InterestProfile, Preferences } from "../types";
-import { shortHash, uniqBy } from "../util/text";
+import type { Category, FieldEntityKind, InterestProfile, Preferences } from "../types";
+import { hasCJK, shortHash, uniqBy } from "../util/text";
 
 export const DOMAIN_FILTERS: Partial<Record<Category, string[]>> = {
   wechat: ["mp.weixin.qq.com"],
@@ -10,7 +10,17 @@ export const DOMAIN_FILTERS: Partial<Record<Category, string[]>> = {
 
 const NEWS_CATEGORIES: Category[] = ["news", "funding", "product", "people"];
 
+/** Where news about each kind of field entity usually belongs, in order of preference. */
+const FIELD_CATEGORIES: Record<FieldEntityKind, Category[]> = {
+  company: ["news", "product", "funding"],
+  startup: ["funding", "news", "product"],
+  investor: ["funding", "news"],
+  lab: ["people", "news"],
+};
+
 const MAX_TASKS = 64;
+/** Entity searches come on top of MAX_TASKS, so they never crowd out topic and personal searches. */
+const MAX_ENTITY_TASKS = 12;
 
 /** Papers the reader liked or disliked in past editions (Semantic Scholar ids), used to steer recommendations. */
 export interface PersonalSeeds {
@@ -86,11 +96,30 @@ export function planSearch(profile: InterestProfile, prefs: Preferences, seeds: 
   }
 
   // Watchlist: exact names and feeds the reader asked to follow.
-  for (const term of (prefs.watchTerms ?? []).slice(0, 8)) {
+  const watchTerms = (prefs.watchTerms ?? []).slice(0, 8);
+  for (const term of watchTerms) {
     tasks.push(task("news", "news", `"${term}"`, /[㐀-鿿]/.test(term) ? "zh" : "en", 2.2, { signal: "watchlist" }));
   }
   for (const feedUrl of (prefs.watchFeeds ?? []).slice(0, 10)) {
     tasks.push(task("feed", "other", feedUrl, "en", 2.5, { feedUrl, signal: "watchlist" }));
+  }
+
+  // Organizations the reader likely follows (field leaders, investors, promising startups), by name, strongest first.
+  const watched = new Set(watchTerms.map((t) => t.toLowerCase()));
+  let entityTasks = 0;
+  for (const e of profile.fieldEntities ?? []) {
+    if (entityTasks >= MAX_ENTITY_TASKS) break;
+    if ([e.name, ...e.aliases].some((n) => watched.has(n.toLowerCase()))) continue; // already searched as a watch term
+    const category = FIELD_CATEGORIES[e.kind]?.find(enabled);
+    if (!category) continue;
+    const priority = 1.2 + 0.6 * e.weight;
+    tasks.push(task(kindFor(category), category, e.focus ? `"${e.name}" ${e.focus}` : `"${e.name}"`, hasCJK(e.name) ? "zh" : "en", priority));
+    entityTasks++;
+    const zh = hasCJK(e.name) ? undefined : e.aliases.find(hasCJK);
+    if (zh && profile.languages.includes("zh") && entityTasks < MAX_ENTITY_TASKS) {
+      tasks.push(task(kindFor(category), category, `"${zh}"`, "zh", priority - 0.2));
+      entityTasks++;
+    }
   }
 
   // Direct mentions of the person.
@@ -109,9 +138,10 @@ export function planSearch(profile: InterestProfile, prefs: Preferences, seeds: 
       picked.push(t);
     }
   }
+  const limit = MAX_TASKS + entityTasks;
   for (const t of unique) {
-    if (picked.length >= MAX_TASKS) break;
+    if (picked.length >= limit) break;
     if (!picked.includes(t)) picked.push(t);
   }
-  return picked.slice(0, MAX_TASKS);
+  return picked.slice(0, limit);
 }

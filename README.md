@@ -28,10 +28,11 @@ another account's briefings, reference sources or ratings.
 
 ```
 Generate ─► 1 sources     fetch & snapshot reference pages (Jina Reader fallback; Google Scholar profile parser)
-            2 profile     DeepSeek builds/updates the interest profile (topics, entities, queries);
+            2 profile     DeepSeek builds/updates the interest profile (topics, entities, organizations
+                          to follow in your field, queries);
                           Semantic Scholar + Google Scholar resolve who you are (your papers, co-authors,
                           citation ids); Jina embeds topics, your papers and muted topics
-            3 search      ~50 queries in parallel lanes, all limited to the last 7 days (multi-path recall below);
+            3 search      up to ~75 queries in parallel lanes, all limited to the last 7 days (multi-path recall below);
                           every result is embedded and scored against your profile and reading history
             4 collect     normalize, URL/DOI dedupe, pre-score, fetch full text, verify dates
             5 cluster     embeddings + headlines pre-group the same story; DeepSeek clusters and rates the
@@ -48,6 +49,11 @@ Generate ─► 1 sources     fetch & snapshot reference pages (Jina Reader fall
 - **Personal paths:** your new papers and your frequent co-authors' papers (Semantic Scholar author feeds); new papers citing your
   most-cited work (Semantic Scholar citations and Google Scholar "cited by"); and Semantic Scholar recommendations seeded with
   your papers plus papers you marked "more like this" (papers you marked "less like this" are negative seeds).
+- **Your field:** the model picks the organizations someone in your field would follow, even if your pages never
+  mention them: the leaders (Anthropic, OpenAI and NVIDIA for LLM and agent work; Tesla and Unitree for robotics), the
+  investors that shape the field (Flagship Pioneering for platform biotech) and, in a small market, the most promising
+  startups. Each is searched by name (also by its Chinese name when you read Chinese), and a story that names one in its
+  headline is more likely to make the shortlist the model rates.
 - **Watchlist:** names you follow are searched verbatim, and your RSS/Atom feeds are read every week.
 
 **Ranking.** `score = 30% relevance + 20% impact + 15% novelty + 15% credibility + 20% value to you`, from the

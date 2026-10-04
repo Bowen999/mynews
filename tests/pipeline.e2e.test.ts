@@ -88,6 +88,7 @@ describe("pipeline (mock mode)", () => {
     // Profile was built and persisted, with a scholarly identity and embedded prototypes.
     const saved = await profileForUser(alice, store);
     expect(saved.interest?.topics.length).toBeGreaterThan(0);
+    expect(saved.interest?.fieldEntities?.map((e) => e.kind)).toEqual(["company", "startup", "investor"]);
     expect(saved.interest?.scholar).toMatchObject({ s2AuthorId: "mock-author", citesIds: ["1001", "1002"] });
     expect(saved.interest?.prototypes?.items.some((p) => p.kind === "work")).toBe(true);
 

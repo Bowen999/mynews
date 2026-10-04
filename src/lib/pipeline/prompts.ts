@@ -4,8 +4,9 @@ const CATEGORY_GUIDE = CATEGORIES.map((c) => `- ${c}: ${CATEGORY_META[c].label}`
 
 export const PROFILE_SYSTEM = `You are a senior research-intelligence analyst. You build structured interest profiles that drive a personalized weekly intelligence briefing.
 Rules:
-- Use ONLY information present in the provided documents, preferences and feedback. Never invent affiliations, roles, projects or names.
-- If something is unknown, leave it empty rather than guessing.
+- Facts about the person (name, roles, affiliations, projects, collaborators, venues) come ONLY from the provided documents, preferences and feedback. Never invent them.
+- If something about the person is unknown, leave it empty rather than guessing.
+- fieldEntities are the exception: choose them from your own knowledge of the person's field, even when the documents never mention them. Name only real organizations you are confident exist and are still active.
 - Reply with a single JSON object and nothing else.`;
 
 export function profilePrompt(input: {
@@ -47,6 +48,7 @@ Return JSON with this shape:
   "person": { "name": "", "aliases": [], "roles": [], "affiliations": [], "location": "" },
   "topics": [ { "name": "", "weight": 0.0, "keywords": ["3-8 precise English search terms"], "zhKeywords": ["Chinese terms if useful"] } ],
   "entities": { "people": [], "organizations": [], "companies": [], "venues": [], "products": [] },
+  "fieldEntities": [ { "name": "", "kind": "company", "aliases": [], "focus": "", "weight": 0.0 } ],
   "queries": [ { "category": "paper", "query": "", "lang": "en" } ],
   "languages": ["en"],
   "exclusions": []
@@ -54,9 +56,16 @@ Return JSON with this shape:
 
 Guidance:
 - 5-12 topics, weights 0-1 (1 = core focus). Prefer specific technical terms over generic ones.
-- entities.people: collaborators, advisors, notable peers explicitly named in the documents. venues: conferences/journals they publish in or attend.
+- entities: only names that appear in the documents (the person's own network). people: collaborators, advisors, notable peers. venues: conferences/journals they publish in or attend.
+- fieldEntities: 8-20 organizations that someone doing this work would follow, whether or not the documents mention them. Cover:
+  * leaders: the companies and labs that set the pace in each core topic (e.g. LLMs and agents: Anthropic, OpenAI, NVIDIA; robotics: Tesla, Unitree; protein design: Generate Biomedicines, BioMap);
+  * investors: venture firms and venture creators that shape the field (e.g. Flagship Pioneering for platform biotech);
+  * startups: when the field is a small or emerging market, the closely related startups with the most promise;
+  * labs: leading academic or industrial research groups and institutes.
+  kind: company | startup | investor | lab. aliases: other names it goes by, including its Chinese name when it has one (e.g. Unitree: "宇树科技"). focus: 2-4 words on what about it matters to this reader (e.g. NVIDIA for an LLM researcher: "AI chips"), empty when all of its news does. weight 0-1: how closely it bears on the person's work.
 - queries: 24-40 concise search-engine queries (2-7 words), covering every enabled category at least once.
   * Do not add dates, "latest", "2026", "news" boilerplate or site: operators; the system adds 7-day and domain filters.
+  * Each fieldEntity is already searched by name; spend queries on topics, not on bare organization names.
   * paper: technical topic phrases. news/product/funding: topic + entity phrasing (e.g. "<company> funding round", "<technique> startup raises").
   * event: conference/workshop names relevant to the person. job: "postdoc <topic>", "<topic> scientist hiring", "faculty position <field>".
   * patent: technical phrases as they would appear in patent claims.
@@ -80,11 +89,14 @@ export function clusterPrompt(input: {
   enabledCategories: Category[];
 }): string {
   const topics = input.profile.topics.map((t) => `${t.name} (${t.weight.toFixed(2)})`).join("; ");
+  const field = (input.profile.fieldEntities ?? []).map((e) => `${e.name} (${e.kind})`).join("; ");
   return `Today is ${input.today}. Coverage window: ${input.windowLabel}.
 
 Reader profile: ${input.profile.summary}
 Topics (weight): ${topics}
 Key entities: ${[...input.profile.entities.people, ...input.profile.entities.organizations, ...input.profile.entities.companies].slice(0, 30).join("; ") || "none"}
+Organizations the reader follows in their field: ${field || "none"}
+(Their launches, results, deals, funding rounds and key hires are relevant to the reader; share-price moves and generic market coverage are not.)
 Exclusions: ${input.profile.exclusions.join("; ") || "none"}
 
 Stories already covered in recent editions (treat repeats as low novelty unless there is a genuinely new development):

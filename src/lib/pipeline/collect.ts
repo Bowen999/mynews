@@ -17,6 +17,8 @@ const ENRICH_TOP = 70;
 const KEEP_AFTER_COLLECT = 80;
 
 const SIGNAL_BOOST: Record<string, number> = { "your-work": 1.5, "cites-your-work": 1.2, coauthor: 0.8, watchlist: 0.8, recommended: 0.5 };
+const FIELD_TITLE_BOOST = 0.6;
+const FIELD_BODY_BOOST = 0.2;
 
 function phraseHit(textLower: string, phrase: string): boolean {
   const p = phrase.toLowerCase().trim();
@@ -59,6 +61,14 @@ export function prescore(c: Candidate, profile: InterestProfile): number {
   let entityHits = 0;
   for (const e of entities) if (phraseHit(title, e) || phraseHit(body, e)) entityHits++;
   score += Math.min(0.9, entityHits * 0.3);
+  // Organizations the reader follows: a story about one (named in the headline) counts more than a passing mention.
+  let field = 0;
+  for (const f of profile.fieldEntities ?? []) {
+    const names = [f.name, ...f.aliases];
+    if (names.some((n) => phraseHit(title, n))) field = Math.max(field, FIELD_TITLE_BOOST * f.weight);
+    else if (names.some((n) => phraseHit(body, n))) field = Math.max(field, FIELD_BODY_BOOST * f.weight);
+  }
+  score += field;
   for (const x of profile.exclusions) if (phraseHit(title, x)) score -= 1;
   for (const s of c.signals ?? []) score += SIGNAL_BOOST[s] ?? 0;
   if (c.watch?.length && !c.signals?.includes("watchlist")) score += SIGNAL_BOOST.watchlist;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { completeJSON } from "../llm/json";
 import { getEmbedder } from "../embed";
-import { CATEGORIES, isCategory, type Category, type InterestProfile, type SearchQuery } from "../types";
+import { CATEGORIES, FIELD_ENTITY_KINDS, isCategory, type Category, type FieldEntity, type FieldEntityKind, type InterestProfile, type SearchQuery } from "../types";
 import { isoDay } from "../util/dates";
 import { clamp, hasCJK, sha1, truncate, uniq, uniqBy } from "../util/text";
 import type { StageContext, StageResult } from "./context";
@@ -9,13 +9,19 @@ import { resolveIdentity, scholarFromHints, withoutWeakMatchData } from "./ident
 import { PROFILE_SYSTEM, profilePrompt } from "./prompts";
 import { ensurePrototypes } from "./semantic";
 
-const PROFILE_VERSION = 4;
+const PROFILE_VERSION = 5;
 /** Re-resolve the scholarly identity at least this often (new papers, new co-authors). */
 const IDENTITY_MAX_AGE_DAYS = 14;
 const REUSE_MAX_AGE_DAYS = 14;
 
 const str = z.string().catch("");
 const strArr = z.array(z.string()).catch([]);
+
+/** Lenient: a bare name or a partial object still counts; anything else becomes an empty entry that is dropped later. */
+const FieldEntitySchema = z.preprocess(
+  (v) => (typeof v === "string" ? { name: v } : v && typeof v === "object" ? v : {}),
+  z.object({ name: str, kind: str, aliases: strArr, focus: str, weight: z.coerce.number().catch(0.6) }),
+);
 
 export const ProfileSchema = z.object({
   summary: z.string().min(1),
@@ -37,6 +43,7 @@ export const ProfileSchema = z.object({
     .object({ people: strArr, organizations: strArr, companies: strArr, venues: strArr, products: strArr })
     .partial()
     .catch({}),
+  fieldEntities: z.array(FieldEntitySchema).catch([]).optional(),
   queries: z
     .array(z.object({ category: z.string(), query: z.string().min(2), lang: z.string().catch("en") }))
     .min(1),
@@ -49,6 +56,39 @@ type ProfileOutput = z.infer<typeof ProfileSchema>;
 function containsAny(text: string, needles: string[]): boolean {
   const t = text.toLowerCase();
   return needles.some((n) => n && t.includes(n.toLowerCase()));
+}
+
+const MAX_FIELD_ENTITIES = 20;
+
+function fieldKind(kind: string): FieldEntityKind {
+  const k = kind.toLowerCase().trim();
+  if ((FIELD_ENTITY_KINDS as readonly string[]).includes(k)) return k as FieldEntityKind;
+  if (/invest|venture|\bvc\b/.test(k)) return "investor";
+  if (/start/.test(k)) return "startup";
+  if (/lab|institut|universit|academ/.test(k)) return "lab";
+  return "company";
+}
+
+const cleanName = (s: string) => s.replace(/["“”]/g, "").replace(/\s+/g, " ").trim();
+
+/** The model's picks of organizations to follow: muted ones removed, one entry per name, strongest first. */
+export function normalizeFieldEntities(list: z.infer<typeof FieldEntitySchema>[], muted: string[]): FieldEntity[] {
+  const out = list
+    .map((e): FieldEntity => {
+      const name = cleanName(e.name);
+      const focus = cleanName(e.focus.replace(/\bsite:\S+/gi, "")).split(" ").slice(0, 6).join(" ");
+      return {
+        name,
+        kind: fieldKind(e.kind),
+        aliases: uniq(e.aliases.map(cleanName).filter((a) => a.length >= 2 && a.toLowerCase() !== name.toLowerCase())).slice(0, 4),
+        focus: focus || undefined,
+        weight: clamp(Number.isFinite(e.weight) ? e.weight : 0.6, 0.05, 1),
+      };
+    })
+    .filter((e) => e.name.length >= 2 && e.name.length <= 80 && ![e.name, ...e.aliases].some((n) => containsAny(n, muted)));
+  return uniqBy(out, (e) => e.name.toLowerCase())
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, MAX_FIELD_ENTITIES);
 }
 
 /** Template queries guarantee every enabled category is searched even if the model skipped it. */
@@ -122,6 +162,7 @@ export function normalizeProfile(
       venues: uniq(e.venues ?? []).slice(0, 20),
       products: uniq(e.products ?? []).slice(0, 20),
     },
+    fieldEntities: normalizeFieldEntities(out.fieldEntities ?? [], muted),
     queries: [],
     languages: uniq((out.languages ?? []).filter((l): l is "en" | "zh" => l === "en" || l === "zh")),
     exclusions: uniq([...(out.exclusions ?? []), ...opts.muted]),

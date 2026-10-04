@@ -58,6 +58,11 @@ export class MockProvider implements LLMProvider {
         venues: ["ASMS"],
         products: ["timsImage"],
       },
+      fieldEntities: [
+        { name: "Example Instruments", kind: "company", aliases: [], focus: "mass spectrometry", weight: 0.8 },
+        { name: "LipoGenix", kind: "startup", aliases: [], focus: "", weight: 0.7 },
+        { name: "Example Capital", kind: "investor", aliases: ["示例资本"], focus: "", weight: 0.5 },
+      ],
       queries: [
         q("paper", "single-cell lipidomics ion mobility"),
         q("paper", "lipid MS/MS spectra annotation transformer"),

@@ -7,6 +7,7 @@
 - Pipeline stages live in `src/lib/pipeline/`; each runs in its own request with a 240 s budget (`runner.ts`).
 - Never let the model produce URLs: sources come from search results; `verify.ts` strips unsupported claims.
 - GitHub results are excluded by design (`isGitHub`).
+- Entities: `entities` holds only names found in the reference sources (never invented); `fieldEntities` are the model's picks of leaders, investors, promising startups and labs in the person's field, each searched by name (`plan.ts`: at most 12 searches, on top of the 64 others).
 - Scholarly recall: Semantic Scholar, Europe PMC, arXiv, Google Scholar (via Jina Reader). Rate-limited services run in their own lanes (`search/index.ts`, `minIntervalMs`); a provider with two outages in a row (429, timeout, 5xx) is skipped for the rest of the run (`TRIP_AFTER`) and `collect.ts` logs one `describeHealth` line per provider. A weak (low-confidence) Semantic Scholar author match is shown on the profile, but its papers are never loaded or used as "your work".
 - Embeddings (`src/lib/embed`, Jina) are optional: every stage must still work keyword-only when `getEmbedder()` returns null.
 - Sign-in: email/password, plus GitHub and Google through Supabase OAuth (`POST /api/auth/oauth/[provider]` → `/auth/callback`, which re-applies the allow-list and `SIGNUPS_DISABLED`). The browser never calls Supabase directly.
